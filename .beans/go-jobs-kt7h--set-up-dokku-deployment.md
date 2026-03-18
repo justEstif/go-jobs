@@ -1,11 +1,11 @@
 ---
 # go-jobs-kt7h
 title: Set up Dokku deployment
-status: todo
+status: completed
 type: task
 priority: normal
 created_at: 2026-03-18T21:56:57Z
-updated_at: 2026-03-18T22:04:39Z
+updated_at: 2026-03-18T22:07:46Z
 ---
 
 Set up Dokku deployment for go-jobs using the provisioning script as a base.
@@ -29,17 +29,17 @@ https://gist.githubusercontent.com/justEstif/34a8f8931c763e2ef350ec319f55dfe3/ra
 ### Core files
 - [x] Write multi-stage `Dockerfile` (tailwind → templ → go build → scratch final image)
 - [x] Write `docker-compose.prod.yml` for self-hosters (pulls from GHCR, wires Postgres)
-- [ ] Write `scripts/deploy-app.sh` with project-specific config (APP_NAME, DOKKU_HOST, DOMAIN, PORT=3000)
+- [x] Write `scripts/deploy-app.sh` with project-specific config (APP_NAME, DOKKU_HOST, DOMAIN, PORT=3000)
 - [x] Create `scripts/env.production.example` listing all required env vars
 
 ### CI / publishing
 - [x] Add `.github/workflows/docker-publish.yml` — builds and pushes to GHCR on push to main and on version tags
-- [ ] Confirm GHCR package visibility is public after first push
+- [ ] Confirm GHCR package visibility is public after first push (do after first CI run)
 
 ### Dokku-specific
-- [ ] Add `app.json` with a `release` phase command to run migrations before traffic switches
-- [ ] Set `PORT=3000` in Dokku config (script defaults to 5000)
-- [ ] Confirm `NEEDS_POSTGRES=true`, `NEEDS_REDIS=false`
+- [x] Add `app.json` with a `release` phase command to run migrations before traffic switches
+- [x] Set `PORT=3000` in Dokku config (script defaults to 5000)
+- [x] Confirm `NEEDS_POSTGRES=true`, `NEEDS_REDIS=false`
 
 ### Env vars to document (in .env.production.example)
 - `DATABASE_URL` — set automatically by Dokku postgres:link, needed manually otherwise
@@ -50,4 +50,14 @@ https://gist.githubusercontent.com/justEstif/34a8f8931c763e2ef350ec319f55dfe3/ra
 - `BASE_URL` — e.g. https://go-jobs.your.domain
 
 ### Docs
-- [ ] Write `docs/DEPLOY.md` covering: Docker pull & run, docker-compose self-host, and Dokku deploy
+- [x] Write `docs/DEPLOY.md` covering: Docker pull & run, docker-compose self-host, and Dokku deploy
+
+## Summary of Changes
+
+- `Dockerfile` — multi-stage build (tailwind → templ → go build), 32MB final image, `migrate` binary included
+- `docker-compose.prod.yml` — pulls from GHCR, wires Postgres with healthcheck, env-var driven
+- `app.json` — Dokku release phase runs `migrate up` before traffic switches
+- `scripts/deploy-app.sh` — provisions Dokku app from env vars (DOKKU_HOST, APP_NAME, DOMAIN)
+- `scripts/env.production.example` — documents all required secrets with generation commands
+- `.github/workflows/docker-publish.yml` — publishes to GHCR on push to main and version tags
+- `docs/DEPLOY.md` — covers Docker Compose, plain Docker, and Dokku deploy paths

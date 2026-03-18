@@ -7,8 +7,9 @@ FROM golang:1.26-bookworm AS builder
 
 WORKDIR /app
 
-# Install templ
+# Install templ and migrate
 RUN go install github.com/a-h/templ/cmd/templ@v0.3.1001
+RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 
 # Copy the standalone Tailwind binary (x86-64 Linux)
 COPY tailwindcss /usr/local/bin/tailwindcss
@@ -36,7 +37,8 @@ WORKDIR /app
 # ca-certificates from the builder — needed for outbound HTTPS (scrapers, LLM calls)
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-# Copy the binary, static assets, and migrations
+# Copy the binary, migrate CLI, static assets, and migrations
+COPY --from=builder /go/bin/migrate /usr/local/bin/migrate
 COPY --from=builder /app/bin/jobs ./jobs
 COPY --from=builder /app/static ./static
 COPY --from=builder /app/migrations ./migrations
