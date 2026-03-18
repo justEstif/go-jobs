@@ -17,6 +17,7 @@ import (
 
 	"github.com/justestif/go-jobs/internal/adapters/enrichment"
 	httphandlers "github.com/justestif/go-jobs/internal/adapters/http"
+	"github.com/justestif/go-jobs/internal/adapters/http/api"
 	"github.com/justestif/go-jobs/internal/adapters/http/middleware"
 	"github.com/justestif/go-jobs/internal/adapters/postgres"
 	"github.com/justestif/go-jobs/internal/adapters/scrapers"
@@ -151,6 +152,7 @@ func runHTTPServer(
 	trackerH := httphandlers.NewTrackerHandler(applicationService, searchService)
 	pipelineH := httphandlers.NewPipelineHandler(applicationService)
 	companyH := httphandlers.NewCompanyHandler(companyService)
+	apiH := api.New(authService, searchService, applicationService)
 
 	r.Group(func(r chi.Router) {
 		r.Use(csrfMw)
@@ -177,6 +179,31 @@ func runHTTPServer(
 		r.Get("/companies", companyH.List)
 		r.Post("/companies/{id}/hide", companyH.Hide)
 		r.Post("/companies/{id}/show", companyH.Show)
+	})
+
+	// ----------------------------------------------------------------
+	// /api/v1/ — JSON driving adapter (CLI, external clients)
+	// Auth: Authorization: Bearer <token>. No CSRF required.
+	// ----------------------------------------------------------------
+	r.Route("/api/v1", func(r chi.Router) {
+		// Public endpoints.
+		r.Post("/auth/register", apiH.Register)
+		r.Post("/auth/login", apiH.Login)
+		r.Get("/jobs", apiH.Search)
+
+		// Protected endpoints — require valid Bearer token.
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.BearerAuth(authService))
+			r.Get("/auth/me", apiH.Me)
+			r.Post("/auth/logout", apiH.Logout)
+			r.Get("/jobs/interested", apiH.Interested)
+			r.Get("/jobs/applied", apiH.Applied)
+			r.Post("/jobs/{id}/interested", apiH.MarkInterested)
+			r.Post("/jobs/{id}/apply", apiH.MarkApplied)
+			r.Post("/jobs/{id}/status", apiH.SetStatus)
+			r.Post("/jobs/{id}/notes", apiH.SetNotes)
+			r.Get("/pipeline", apiH.Pipeline)
+		})
 	})
 
 	port := os.Getenv("PORT")

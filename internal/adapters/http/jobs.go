@@ -163,9 +163,10 @@ func parsePostedWithin(raw string) int {
 		return 7
 	case "14d":
 		return 14
-	case "90d", "":
+	case "90d":
 		return 90
 	default:
-		return 90
+		// Empty or unrecognised value means no date filter.
+		return 0
 	}
 }
