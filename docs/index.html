@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>go-jobs</title>
+    <meta
+      name="description"
+      content="go-jobs is a self-hosted job aggregator for startup ATS platforms, with enrichment, filters, web UI, and CLI tracking."
+    />
+    <link rel="stylesheet" href="https://unpkg.com/missing.css@1.2.0" />
+    <style>
+      :root {
+        --brand-ink: oklch(22% 0.02 255);
+        --brand-soft: oklch(96% 0.015 78);
+        --brand-accent: oklch(58% 0.14 160);
+        --brand-accent-2: oklch(68% 0.1 38);
+      }
+
+      body {
+        background:
+          radial-gradient(circle at 88% 10%, color-mix(in oklab, var(--brand-accent) 18%, transparent), transparent 32%),
+          radial-gradient(circle at 10% 12%, color-mix(in oklab, var(--brand-accent-2) 18%, transparent), transparent 30%),
+          linear-gradient(180deg, var(--brand-soft), color-mix(in oklab, var(--brand-soft) 70%, white));
+        color: var(--brand-ink);
+      }
+
+      .page-wrap {
+        max-width: 68rem;
+        margin-inline: auto;
+        padding: clamp(1rem, 2vw + 0.8rem, 2.5rem) clamp(1rem, 2vw + 0.6rem, 1.8rem) 3rem;
+      }
+
+      .hero {
+        margin-top: 0.8rem;
+        animation: rise-in 420ms ease-out both;
+      }
+
+      .hero h1 {
+        font-size: clamp(2rem, 4vw + 0.8rem, 4rem);
+        letter-spacing: -0.03em;
+      }
+
+      .hero p {
+        max-width: 60ch;
+      }
+
+      .chip-row {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+
+      .grid-two {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+        gap: 0.9rem;
+      }
+
+      .feature-box {
+        min-height: 100%;
+      }
+
+      .quickstart pre {
+        overflow-x: auto;
+        font-size: 0.93rem;
+      }
+
+      .docs-list a {
+        font-weight: 600;
+      }
+
+      .stagger {
+        animation: rise-in 500ms ease-out both;
+      }
+
+      .stagger:nth-child(2) { animation-delay: 70ms; }
+      .stagger:nth-child(3) { animation-delay: 120ms; }
+      .stagger:nth-child(4) { animation-delay: 170ms; }
+
+      @keyframes rise-in {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .hero,
+        .stagger {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-wrap">
+      <header class="navbar">
+        <a href="#top"><strong>go-jobs</strong></a>
+        <nav>
+          <a href="../README.md">README</a>
+          <a href="ARCHITECTURE.md">Architecture</a>
+          <a href="interfaces.md">Interfaces</a>
+          <a href="self-hosting.md">Self-hosting</a>
+          <a href="https://github.com/justestif/go-jobs">GitHub</a>
+        </nav>
+      </header>
+
+      <main id="top" class="flow-gap">
+        <section class="hero">
+          <p class="allcaps"><small>self-hosted startup job search</small></p>
+          <h1>Find better jobs. Keep full control of your data.</h1>
+          <p>
+            go-jobs is a self-hosted job aggregator that pulls from Greenhouse, Lever,
+            and Ashby, enriches postings with structured metadata, and gives you both a
+            fast web UI and a CLI to search, filter, and track your pipeline.
+          </p>
+          <p>
+            <a class="chip ok border" href="../README.md">Get started</a>
+            <a class="chip info border" href="self-hosting.md">Self-hosting guide</a>
+            <a class="chip plain border" href="https://github.com/justestif/go-jobs">View repository</a>
+          </p>
+          <div class="chip-row">
+            <span class="chip border">Go + PostgreSQL</span>
+            <span class="chip border">Hexagonal architecture</span>
+            <span class="chip border">Web + CLI</span>
+            <span class="chip border">Optional LLM enrichment</span>
+          </div>
+        </section>
+
+        <section class="stagger">
+          <h2>What it does</h2>
+          <div class="grid-two">
+            <article class="box feature-box">
+              <h3>Aggregate from startup ATS sources</h3>
+              <p>
+                Scrapes jobs from Greenhouse, Lever, and Ashby, stores everything in your
+                own PostgreSQL database, and keeps postings fresh via scheduled runs.
+              </p>
+            </article>
+            <article class="box feature-box">
+              <h3>Enrich jobs for real filtering</h3>
+              <p>
+                Classifies role type, seniority, remote policy, location, and tech stack,
+                so filtering is meaningful instead of keyword guessing.
+              </p>
+            </article>
+            <article class="box feature-box">
+              <h3>Track applications in one place</h3>
+              <p>
+                Move jobs through interested, applied, interviewing, offer, rejected, and
+                withdrawn states from either the UI or terminal.
+              </p>
+            </article>
+            <article class="box feature-box">
+              <h3>Own your stack and uptime</h3>
+              <p>
+                You host it. You run the schedule. You keep your data and workflow without
+                depending on a third-party board.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="stagger">
+          <h2>Architecture at a glance</h2>
+          <div class="box">
+            <ul>
+              <li>Core-first hexagonal structure: ports and services in <code>internal/core</code></li>
+              <li>Driven adapters for Postgres, ATS scrapers, enrichment, and scheduler</li>
+              <li>Driving adapters for HTTP handlers, middleware, CLI commands, and jobs loop</li>
+              <li>Single composition root in <code>cmd/jobs/main.go</code></li>
+            </ul>
+            <p>
+              Read the full technical docs in
+              <a href="ARCHITECTURE.md">ARCHITECTURE.md</a>
+              and <a href="interfaces.md">interfaces.md</a>.
+            </p>
+          </div>
+        </section>
+
+        <section class="stagger quickstart">
+          <h2>Quick start</h2>
+          <div class="box">
+            <pre><code>mise install
+docker-compose up -d
+mise run setup
+mise run dev</code></pre>
+            <p>Then open <code>http://localhost:3000</code>.</p>
+            <p>
+              For production-friendly local deployment steps, see
+              <a href="self-hosting.md">Self-hosting</a>.
+            </p>
+          </div>
+        </section>
+
+        <section class="stagger docs-list">
+          <h2>Documentation</h2>
+          <div class="grid-two">
+            <article class="box">
+              <h3><a href="self-hosting.md">Self-hosting</a></h3>
+              <p>Environment variables, startup commands, and deployment checklist.</p>
+            </article>
+            <article class="box">
+              <h3><a href="MVP.md">MVP scope</a></h3>
+              <p>Problem framing, feature set, milestones, and non-goals.</p>
+            </article>
+            <article class="box">
+              <h3><a href="ARCHITECTURE.md">Architecture</a></h3>
+              <p>System design, data model, and service boundaries.</p>
+            </article>
+            <article class="box">
+              <h3><a href="interfaces.md">Interfaces</a></h3>
+              <p>Authoritative domain types and port contracts.</p>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
