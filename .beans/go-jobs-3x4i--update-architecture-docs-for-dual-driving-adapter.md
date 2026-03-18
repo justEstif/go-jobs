@@ -1,11 +1,11 @@
 ---
 # go-jobs-3x4i
 title: Update architecture docs for dual driving adapter pattern
-status: in-progress
+status: completed
 type: task
 priority: normal
 created_at: 2026-03-18T21:36:57Z
-updated_at: 2026-03-18T21:47:35Z
+updated_at: 2026-03-18T21:51:17Z
 parent: go-jobs-qlpf
 ---
 
@@ -17,3 +17,6 @@ Update docs/ARCHITECTURE.md and docs/interfaces.md to document the dual driving 
 - --base-url flag and BASE_URL env var config
 - Command split table: which CLI commands require local access vs. work remotely
 - Auth flow for API routes (Bearer token)
+
+## Summary of Changes
+Updated docs/ARCHITECTURE.md with dual driving adapter pattern, new CLI Remote Mode section, updated system overview diagram, updated folder structure, and updated driving ports table.
