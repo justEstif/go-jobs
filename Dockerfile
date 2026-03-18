@@ -17,6 +17,14 @@ ADD --checksum=sha256:39e8d4e24b3c83b0a6e69e100a972fbc75d5fef8dce47b3ddac3cf92de
     /usr/local/bin/tailwindcss
 RUN chmod +x /usr/local/bin/tailwindcss
 
+# Download daisyUI plugin files (also gitignored locally)
+ADD --checksum=sha256:5fe43ff5e83c5cf519ccc32d76aa1a82ed6bfc50ee3e6f5dc6007eea6239af1f \
+    https://github.com/saadeghi/daisyui/releases/download/v5.5.19/daisyui.mjs \
+    /app/daisyui.mjs
+ADD --checksum=sha256:b4071bef2e59bd83509659c1e726cc19704a1fd14ff2e56d479bc16a6a53f26d \
+    https://github.com/saadeghi/daisyui/releases/download/v5.5.19/daisyui-theme.mjs \
+    /app/daisyui-theme.mjs
+
 # Download Go dependencies (cached layer)
 COPY go.mod go.sum ./
 RUN go mod download
