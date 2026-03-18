@@ -37,6 +37,11 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Generate templ files
+        run: |
+          go install github.com/a-h/templ/cmd/templ@latest
+          templ generate
+
       - name: Build
         env:
           GOOS: ${{ matrix.goos }}
