@@ -7,80 +7,209 @@ package queries
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createUser = `-- name: CreateUser :one
-INSERT INTO users (name, email)
-VALUES ($1, $2)
-RETURNING id, name, email, created_at, updated_at
+const createScrapeRun = `-- name: CreateScrapeRun :exec
+
+INSERT INTO scrape_runs (id, started_at, status)
+VALUES ($1, $2, $3)
 `
 
-type CreateUserParams struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
+type CreateScrapeRunParams struct {
+	ID        pgtype.UUID        `json:"id"`
+	StartedAt pgtype.Timestamptz `json:"started_at"`
+	Status    string             `json:"status"`
 }
 
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser, arg.Name, arg.Email)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Email,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const deleteUser = `-- name: DeleteUser :exec
-DELETE FROM users
-WHERE id = $1
-`
-
-func (q *Queries) DeleteUser(ctx context.Context, id int32) error {
-	_, err := q.db.Exec(ctx, deleteUser, id)
+// ============================================================
+// Scrape Runs
+// ============================================================
+func (q *Queries) CreateScrapeRun(ctx context.Context, arg CreateScrapeRunParams) error {
+	_, err := q.db.Exec(ctx, createScrapeRun, arg.ID, arg.StartedAt, arg.Status)
 	return err
 }
 
-const getUser = `-- name: GetUser :one
-SELECT id, name, email, created_at, updated_at FROM users
-WHERE id = $1 LIMIT 1
+const createUser = `-- name: CreateUser :one
+
+INSERT INTO users (email, password_hash)
+VALUES ($1, $2)
+RETURNING id, email, password_hash, llm_api_key, llm_provider, last_visited_at, created_at
 `
 
-func (q *Queries) GetUser(ctx context.Context, id int32) (User, error) {
-	row := q.db.QueryRow(ctx, getUser, id)
+type CreateUserParams struct {
+	Email        string `json:"email"`
+	PasswordHash string `json:"password_hash"`
+}
+
+// ============================================================
+// Users
+// ============================================================
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, createUser, arg.Email, arg.PasswordHash)
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Name,
 		&i.Email,
+		&i.PasswordHash,
+		&i.LlmApiKey,
+		&i.LlmProvider,
+		&i.LastVisitedAt,
 		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const listUsers = `-- name: ListUsers :many
-SELECT id, name, email, created_at, updated_at FROM users
-ORDER BY created_at DESC
+const deleteSession = `-- name: DeleteSession :exec
+DELETE FROM sessions WHERE token = $1
 `
 
-func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
-	rows, err := q.db.Query(ctx, listUsers)
+func (q *Queries) DeleteSession(ctx context.Context, token string) error {
+	_, err := q.db.Exec(ctx, deleteSession, token)
+	return err
+}
+
+const getCompanyByBoardToken = `-- name: GetCompanyByBoardToken :one
+SELECT id, name, careers_url, ats_type, scrape_type, board_token, active, created_at FROM companies
+WHERE ats_type = $1 AND board_token = $2
+LIMIT 1
+`
+
+type GetCompanyByBoardTokenParams struct {
+	AtsType    string `json:"ats_type"`
+	BoardToken string `json:"board_token"`
+}
+
+func (q *Queries) GetCompanyByBoardToken(ctx context.Context, arg GetCompanyByBoardTokenParams) (Company, error) {
+	row := q.db.QueryRow(ctx, getCompanyByBoardToken, arg.AtsType, arg.BoardToken)
+	var i Company
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CareersUrl,
+		&i.AtsType,
+		&i.ScrapeType,
+		&i.BoardToken,
+		&i.Active,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getCompanyByID = `-- name: GetCompanyByID :one
+SELECT id, name, careers_url, ats_type, scrape_type, board_token, active, created_at FROM companies
+WHERE id = $1
+LIMIT 1
+`
+
+func (q *Queries) GetCompanyByID(ctx context.Context, id pgtype.UUID) (Company, error) {
+	row := q.db.QueryRow(ctx, getCompanyByID, id)
+	var i Company
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CareersUrl,
+		&i.AtsType,
+		&i.ScrapeType,
+		&i.BoardToken,
+		&i.Active,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getJobByID = `-- name: GetJobByID :one
+SELECT j.id, j.company_id, j.external_id, j.title, j.url, j.location, j.description, j.raw_html, j.source, j.first_seen, j.last_seen, j.active, c.name AS company_name
+FROM jobs j
+JOIN companies c ON c.id = j.company_id
+WHERE j.id = $1
+LIMIT 1
+`
+
+type GetJobByIDRow struct {
+	ID          pgtype.UUID        `json:"id"`
+	CompanyID   pgtype.UUID        `json:"company_id"`
+	ExternalID  string             `json:"external_id"`
+	Title       string             `json:"title"`
+	Url         string             `json:"url"`
+	Location    string             `json:"location"`
+	Description string             `json:"description"`
+	RawHtml     string             `json:"raw_html"`
+	Source      string             `json:"source"`
+	FirstSeen   pgtype.Timestamptz `json:"first_seen"`
+	LastSeen    pgtype.Timestamptz `json:"last_seen"`
+	Active      bool               `json:"active"`
+	CompanyName string             `json:"company_name"`
+}
+
+func (q *Queries) GetJobByID(ctx context.Context, id pgtype.UUID) (GetJobByIDRow, error) {
+	row := q.db.QueryRow(ctx, getJobByID, id)
+	var i GetJobByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.ExternalID,
+		&i.Title,
+		&i.Url,
+		&i.Location,
+		&i.Description,
+		&i.RawHtml,
+		&i.Source,
+		&i.FirstSeen,
+		&i.LastSeen,
+		&i.Active,
+		&i.CompanyName,
+	)
+	return i, err
+}
+
+const getJobsByIDs = `-- name: GetJobsByIDs :many
+SELECT j.id, j.company_id, j.external_id, j.title, j.url, j.location, j.description, j.raw_html, j.source, j.first_seen, j.last_seen, j.active, c.name AS company_name
+FROM jobs j
+JOIN companies c ON c.id = j.company_id
+WHERE j.id = ANY($1::uuid[])
+`
+
+type GetJobsByIDsRow struct {
+	ID          pgtype.UUID        `json:"id"`
+	CompanyID   pgtype.UUID        `json:"company_id"`
+	ExternalID  string             `json:"external_id"`
+	Title       string             `json:"title"`
+	Url         string             `json:"url"`
+	Location    string             `json:"location"`
+	Description string             `json:"description"`
+	RawHtml     string             `json:"raw_html"`
+	Source      string             `json:"source"`
+	FirstSeen   pgtype.Timestamptz `json:"first_seen"`
+	LastSeen    pgtype.Timestamptz `json:"last_seen"`
+	Active      bool               `json:"active"`
+	CompanyName string             `json:"company_name"`
+}
+
+func (q *Queries) GetJobsByIDs(ctx context.Context, dollar_1 []pgtype.UUID) ([]GetJobsByIDsRow, error) {
+	rows, err := q.db.Query(ctx, getJobsByIDs, dollar_1)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []User{}
+	items := []GetJobsByIDsRow{}
 	for rows.Next() {
-		var i User
+		var i GetJobsByIDsRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.Name,
-			&i.Email,
-			&i.CreatedAt,
-			&i.UpdatedAt,
+			&i.CompanyID,
+			&i.ExternalID,
+			&i.Title,
+			&i.Url,
+			&i.Location,
+			&i.Description,
+			&i.RawHtml,
+			&i.Source,
+			&i.FirstSeen,
+			&i.LastSeen,
+			&i.Active,
+			&i.CompanyName,
 		); err != nil {
 			return nil, err
 		}
@@ -92,19 +221,626 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 	return items, nil
 }
 
+const getLatestScrapeRun = `-- name: GetLatestScrapeRun :one
+SELECT id, started_at, finished_at, status, jobs_added, jobs_updated, jobs_removed, error FROM scrape_runs
+ORDER BY started_at DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLatestScrapeRun(ctx context.Context) (ScrapeRun, error) {
+	row := q.db.QueryRow(ctx, getLatestScrapeRun)
+	var i ScrapeRun
+	err := row.Scan(
+		&i.ID,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Status,
+		&i.JobsAdded,
+		&i.JobsUpdated,
+		&i.JobsRemoved,
+		&i.Error,
+	)
+	return i, err
+}
+
+const getUserByEmail = `-- name: GetUserByEmail :one
+SELECT id, email, password_hash, llm_api_key, llm_provider, last_visited_at, created_at FROM users
+WHERE email = $1
+LIMIT 1
+`
+
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByEmail, email)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.LlmApiKey,
+		&i.LlmProvider,
+		&i.LastVisitedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getUserByID = `-- name: GetUserByID :one
+SELECT id, email, password_hash, llm_api_key, llm_provider, last_visited_at, created_at FROM users
+WHERE id = $1
+LIMIT 1
+`
+
+func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.LlmApiKey,
+		&i.LlmProvider,
+		&i.LastVisitedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getUserByToken = `-- name: GetUserByToken :one
+SELECT u.id, u.email, u.password_hash, u.llm_api_key, u.llm_provider, u.last_visited_at, u.created_at
+FROM users u
+JOIN sessions s ON s.user_id = u.id
+WHERE s.token = $1
+LIMIT 1
+`
+
+func (q *Queries) GetUserByToken(ctx context.Context, token string) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByToken, token)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.LlmApiKey,
+		&i.LlmProvider,
+		&i.LastVisitedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getUserJob = `-- name: GetUserJob :one
+SELECT user_id, job_id, status, status_at, applied_at, notes FROM user_jobs
+WHERE user_id = $1 AND job_id = $2
+LIMIT 1
+`
+
+type GetUserJobParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	JobID  pgtype.UUID `json:"job_id"`
+}
+
+func (q *Queries) GetUserJob(ctx context.Context, arg GetUserJobParams) (UserJob, error) {
+	row := q.db.QueryRow(ctx, getUserJob, arg.UserID, arg.JobID)
+	var i UserJob
+	err := row.Scan(
+		&i.UserID,
+		&i.JobID,
+		&i.Status,
+		&i.StatusAt,
+		&i.AppliedAt,
+		&i.Notes,
+	)
+	return i, err
+}
+
+const listActiveCompanies = `-- name: ListActiveCompanies :many
+SELECT id, name, careers_url, ats_type, scrape_type, board_token, active, created_at FROM companies
+WHERE active = TRUE
+ORDER BY name
+`
+
+func (q *Queries) ListActiveCompanies(ctx context.Context) ([]Company, error) {
+	rows, err := q.db.Query(ctx, listActiveCompanies)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Company{}
+	for rows.Next() {
+		var i Company
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.CareersUrl,
+			&i.AtsType,
+			&i.ScrapeType,
+			&i.BoardToken,
+			&i.Active,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAllUserJobs = `-- name: ListAllUserJobs :many
+SELECT user_id, job_id, status, status_at, applied_at, notes FROM user_jobs
+WHERE user_id = $1
+ORDER BY status_at DESC
+`
+
+func (q *Queries) ListAllUserJobs(ctx context.Context, userID pgtype.UUID) ([]UserJob, error) {
+	rows, err := q.db.Query(ctx, listAllUserJobs, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []UserJob{}
+	for rows.Next() {
+		var i UserJob
+		if err := rows.Scan(
+			&i.UserID,
+			&i.JobID,
+			&i.Status,
+			&i.StatusAt,
+			&i.AppliedAt,
+			&i.Notes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listHiddenCompanies = `-- name: ListHiddenCompanies :many
+SELECT company_id FROM user_companies
+WHERE user_id = $1 AND hidden = TRUE
+`
+
+func (q *Queries) ListHiddenCompanies(ctx context.Context, userID pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listHiddenCompanies, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var company_id pgtype.UUID
+		if err := rows.Scan(&company_id); err != nil {
+			return nil, err
+		}
+		items = append(items, company_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUnenrichedJobs = `-- name: ListUnenrichedJobs :many
+SELECT j.id, j.company_id, j.external_id, j.title, j.url, j.location, j.description, j.raw_html, j.source, j.first_seen, j.last_seen, j.active, c.name AS company_name
+FROM jobs j
+JOIN companies c ON c.id = j.company_id
+LEFT JOIN job_tags jt ON jt.job_id = j.id
+WHERE jt.job_id IS NULL
+  AND j.active = TRUE
+ORDER BY j.first_seen ASC
+LIMIT $1
+`
+
+type ListUnenrichedJobsRow struct {
+	ID          pgtype.UUID        `json:"id"`
+	CompanyID   pgtype.UUID        `json:"company_id"`
+	ExternalID  string             `json:"external_id"`
+	Title       string             `json:"title"`
+	Url         string             `json:"url"`
+	Location    string             `json:"location"`
+	Description string             `json:"description"`
+	RawHtml     string             `json:"raw_html"`
+	Source      string             `json:"source"`
+	FirstSeen   pgtype.Timestamptz `json:"first_seen"`
+	LastSeen    pgtype.Timestamptz `json:"last_seen"`
+	Active      bool               `json:"active"`
+	CompanyName string             `json:"company_name"`
+}
+
+func (q *Queries) ListUnenrichedJobs(ctx context.Context, limit int32) ([]ListUnenrichedJobsRow, error) {
+	rows, err := q.db.Query(ctx, listUnenrichedJobs, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUnenrichedJobsRow{}
+	for rows.Next() {
+		var i ListUnenrichedJobsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.ExternalID,
+			&i.Title,
+			&i.Url,
+			&i.Location,
+			&i.Description,
+			&i.RawHtml,
+			&i.Source,
+			&i.FirstSeen,
+			&i.LastSeen,
+			&i.Active,
+			&i.CompanyName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserJobsByStatus = `-- name: ListUserJobsByStatus :many
+SELECT job_id FROM user_jobs
+WHERE user_id = $1 AND status = $2
+ORDER BY status_at DESC
+`
+
+type ListUserJobsByStatusParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	Status string      `json:"status"`
+}
+
+func (q *Queries) ListUserJobsByStatus(ctx context.Context, arg ListUserJobsByStatusParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listUserJobsByStatus, arg.UserID, arg.Status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var job_id pgtype.UUID
+		if err := rows.Scan(&job_id); err != nil {
+			return nil, err
+		}
+		items = append(items, job_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markJobsInactive = `-- name: MarkJobsInactive :exec
+UPDATE jobs
+SET active = FALSE
+WHERE company_id = $1
+  AND external_id != ALL($2::text[])
+  AND active = TRUE
+`
+
+type MarkJobsInactiveParams struct {
+	CompanyID pgtype.UUID `json:"company_id"`
+	Column2   []string    `json:"column_2"`
+}
+
+func (q *Queries) MarkJobsInactive(ctx context.Context, arg MarkJobsInactiveParams) error {
+	_, err := q.db.Exec(ctx, markJobsInactive, arg.CompanyID, arg.Column2)
+	return err
+}
+
+const saveSession = `-- name: SaveSession :exec
+
+INSERT INTO sessions (token, user_id)
+VALUES ($1, $2)
+ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id
+`
+
+type SaveSessionParams struct {
+	Token  string      `json:"token"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+// ============================================================
+// Sessions
+// ============================================================
+func (q *Queries) SaveSession(ctx context.Context, arg SaveSessionParams) error {
+	_, err := q.db.Exec(ctx, saveSession, arg.Token, arg.UserID)
+	return err
+}
+
+const setUserCompanyHidden = `-- name: SetUserCompanyHidden :exec
+
+INSERT INTO user_companies (user_id, company_id, hidden)
+VALUES ($1, $2, $3)
+ON CONFLICT (user_id, company_id) DO UPDATE
+    SET hidden = EXCLUDED.hidden
+`
+
+type SetUserCompanyHiddenParams struct {
+	UserID    pgtype.UUID `json:"user_id"`
+	CompanyID pgtype.UUID `json:"company_id"`
+	Hidden    bool        `json:"hidden"`
+}
+
+// ============================================================
+// User Companies
+// ============================================================
+func (q *Queries) SetUserCompanyHidden(ctx context.Context, arg SetUserCompanyHiddenParams) error {
+	_, err := q.db.Exec(ctx, setUserCompanyHidden, arg.UserID, arg.CompanyID, arg.Hidden)
+	return err
+}
+
+const touchUserLastVisited = `-- name: TouchUserLastVisited :exec
+UPDATE users
+SET last_visited_at = NOW()
+WHERE id = $1
+`
+
+func (q *Queries) TouchUserLastVisited(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, touchUserLastVisited, id)
+	return err
+}
+
+const updateScrapeRun = `-- name: UpdateScrapeRun :exec
+UPDATE scrape_runs
+SET
+    finished_at  = $2,
+    status       = $3,
+    jobs_added   = $4,
+    jobs_updated = $5,
+    jobs_removed = $6,
+    error        = $7
+WHERE id = $1
+`
+
+type UpdateScrapeRunParams struct {
+	ID          pgtype.UUID        `json:"id"`
+	FinishedAt  pgtype.Timestamptz `json:"finished_at"`
+	Status      string             `json:"status"`
+	JobsAdded   int32              `json:"jobs_added"`
+	JobsUpdated int32              `json:"jobs_updated"`
+	JobsRemoved int32              `json:"jobs_removed"`
+	Error       string             `json:"error"`
+}
+
+func (q *Queries) UpdateScrapeRun(ctx context.Context, arg UpdateScrapeRunParams) error {
+	_, err := q.db.Exec(ctx, updateScrapeRun,
+		arg.ID,
+		arg.FinishedAt,
+		arg.Status,
+		arg.JobsAdded,
+		arg.JobsUpdated,
+		arg.JobsRemoved,
+		arg.Error,
+	)
+	return err
+}
+
 const updateUser = `-- name: UpdateUser :exec
 UPDATE users
-SET name = $1, email = $2, updated_at = CURRENT_TIMESTAMP
-WHERE id = $3
+SET
+    llm_api_key     = $2,
+    llm_provider    = $3,
+    last_visited_at = $4
+WHERE id = $1
 `
 
 type UpdateUserParams struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
-	ID    int32  `json:"id"`
+	ID            pgtype.UUID        `json:"id"`
+	LlmApiKey     string             `json:"llm_api_key"`
+	LlmProvider   string             `json:"llm_provider"`
+	LastVisitedAt pgtype.Timestamptz `json:"last_visited_at"`
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) error {
-	_, err := q.db.Exec(ctx, updateUser, arg.Name, arg.Email, arg.ID)
+	_, err := q.db.Exec(ctx, updateUser,
+		arg.ID,
+		arg.LlmApiKey,
+		arg.LlmProvider,
+		arg.LastVisitedAt,
+	)
+	return err
+}
+
+const upsertCompany = `-- name: UpsertCompany :one
+
+INSERT INTO companies (name, careers_url, ats_type, scrape_type, board_token, active)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (ats_type, board_token) DO UPDATE
+    SET name        = EXCLUDED.name,
+        careers_url = EXCLUDED.careers_url,
+        scrape_type = EXCLUDED.scrape_type,
+        active      = EXCLUDED.active
+RETURNING id, name, careers_url, ats_type, scrape_type, board_token, active, created_at
+`
+
+type UpsertCompanyParams struct {
+	Name       string `json:"name"`
+	CareersUrl string `json:"careers_url"`
+	AtsType    string `json:"ats_type"`
+	ScrapeType string `json:"scrape_type"`
+	BoardToken string `json:"board_token"`
+	Active     bool   `json:"active"`
+}
+
+// ============================================================
+// Companies
+// ============================================================
+func (q *Queries) UpsertCompany(ctx context.Context, arg UpsertCompanyParams) (Company, error) {
+	row := q.db.QueryRow(ctx, upsertCompany,
+		arg.Name,
+		arg.CareersUrl,
+		arg.AtsType,
+		arg.ScrapeType,
+		arg.BoardToken,
+		arg.Active,
+	)
+	var i Company
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CareersUrl,
+		&i.AtsType,
+		&i.ScrapeType,
+		&i.BoardToken,
+		&i.Active,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const upsertJob = `-- name: UpsertJob :one
+
+INSERT INTO jobs (company_id, external_id, title, url, location, description, raw_html, source, first_seen, last_seen)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+ON CONFLICT (company_id, external_id) DO UPDATE
+    SET title       = EXCLUDED.title,
+        url         = EXCLUDED.url,
+        location    = EXCLUDED.location,
+        description = EXCLUDED.description,
+        raw_html    = EXCLUDED.raw_html,
+        last_seen   = EXCLUDED.last_seen,
+        active      = TRUE
+RETURNING id, company_id, external_id, title, url, location, description, raw_html, source, first_seen, last_seen, active
+`
+
+type UpsertJobParams struct {
+	CompanyID   pgtype.UUID        `json:"company_id"`
+	ExternalID  string             `json:"external_id"`
+	Title       string             `json:"title"`
+	Url         string             `json:"url"`
+	Location    string             `json:"location"`
+	Description string             `json:"description"`
+	RawHtml     string             `json:"raw_html"`
+	Source      string             `json:"source"`
+	FirstSeen   pgtype.Timestamptz `json:"first_seen"`
+	LastSeen    pgtype.Timestamptz `json:"last_seen"`
+}
+
+// ============================================================
+// Jobs
+// ============================================================
+func (q *Queries) UpsertJob(ctx context.Context, arg UpsertJobParams) (Job, error) {
+	row := q.db.QueryRow(ctx, upsertJob,
+		arg.CompanyID,
+		arg.ExternalID,
+		arg.Title,
+		arg.Url,
+		arg.Location,
+		arg.Description,
+		arg.RawHtml,
+		arg.Source,
+		arg.FirstSeen,
+		arg.LastSeen,
+	)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.ExternalID,
+		&i.Title,
+		&i.Url,
+		&i.Location,
+		&i.Description,
+		&i.RawHtml,
+		&i.Source,
+		&i.FirstSeen,
+		&i.LastSeen,
+		&i.Active,
+	)
+	return i, err
+}
+
+const upsertJobTags = `-- name: UpsertJobTags :exec
+
+INSERT INTO job_tags (job_id, role_type, seniority, remote_policy, location_norm, country, tech_stack, enrichment_source, enriched_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+ON CONFLICT (job_id) DO UPDATE
+    SET role_type         = EXCLUDED.role_type,
+        seniority         = EXCLUDED.seniority,
+        remote_policy     = EXCLUDED.remote_policy,
+        location_norm     = EXCLUDED.location_norm,
+        country           = EXCLUDED.country,
+        tech_stack        = EXCLUDED.tech_stack,
+        enrichment_source = EXCLUDED.enrichment_source,
+        enriched_at       = EXCLUDED.enriched_at
+`
+
+type UpsertJobTagsParams struct {
+	JobID            pgtype.UUID        `json:"job_id"`
+	RoleType         string             `json:"role_type"`
+	Seniority        string             `json:"seniority"`
+	RemotePolicy     string             `json:"remote_policy"`
+	LocationNorm     string             `json:"location_norm"`
+	Country          string             `json:"country"`
+	TechStack        []string           `json:"tech_stack"`
+	EnrichmentSource string             `json:"enrichment_source"`
+	EnrichedAt       pgtype.Timestamptz `json:"enriched_at"`
+}
+
+// ============================================================
+// Job Tags
+// ============================================================
+func (q *Queries) UpsertJobTags(ctx context.Context, arg UpsertJobTagsParams) error {
+	_, err := q.db.Exec(ctx, upsertJobTags,
+		arg.JobID,
+		arg.RoleType,
+		arg.Seniority,
+		arg.RemotePolicy,
+		arg.LocationNorm,
+		arg.Country,
+		arg.TechStack,
+		arg.EnrichmentSource,
+		arg.EnrichedAt,
+	)
+	return err
+}
+
+const upsertUserJob = `-- name: UpsertUserJob :exec
+
+INSERT INTO user_jobs (user_id, job_id, status, status_at, applied_at, notes)
+VALUES ($1, $2, $3, $4,
+    CASE WHEN $3 = 'applied' THEN COALESCE($5, NOW()) ELSE $5 END,
+    $6)
+ON CONFLICT (user_id, job_id) DO UPDATE
+    SET status     = EXCLUDED.status,
+        status_at  = EXCLUDED.status_at,
+        applied_at = CASE
+            WHEN user_jobs.applied_at IS NOT NULL THEN user_jobs.applied_at
+            WHEN EXCLUDED.status = 'applied' THEN COALESCE(EXCLUDED.applied_at, NOW())
+            ELSE NULL
+        END,
+        notes      = EXCLUDED.notes
+`
+
+type UpsertUserJobParams struct {
+	UserID   pgtype.UUID        `json:"user_id"`
+	JobID    pgtype.UUID        `json:"job_id"`
+	Status   string             `json:"status"`
+	StatusAt pgtype.Timestamptz `json:"status_at"`
+	Column5  interface{}        `json:"column_5"`
+	Notes    string             `json:"notes"`
+}
+
+// ============================================================
+// User Jobs
+// ============================================================
+func (q *Queries) UpsertUserJob(ctx context.Context, arg UpsertUserJobParams) error {
+	_, err := q.db.Exec(ctx, upsertUserJob,
+		arg.UserID,
+		arg.JobID,
+		arg.Status,
+		arg.StatusAt,
+		arg.Column5,
+		arg.Notes,
+	)
 	return err
 }

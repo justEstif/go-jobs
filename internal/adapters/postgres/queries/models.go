@@ -8,10 +8,82 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Company struct {
+	ID         pgtype.UUID        `json:"id"`
+	Name       string             `json:"name"`
+	CareersUrl string             `json:"careers_url"`
+	AtsType    string             `json:"ats_type"`
+	ScrapeType string             `json:"scrape_type"`
+	BoardToken string             `json:"board_token"`
+	Active     bool               `json:"active"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type Job struct {
+	ID          pgtype.UUID        `json:"id"`
+	CompanyID   pgtype.UUID        `json:"company_id"`
+	ExternalID  string             `json:"external_id"`
+	Title       string             `json:"title"`
+	Url         string             `json:"url"`
+	Location    string             `json:"location"`
+	Description string             `json:"description"`
+	RawHtml     string             `json:"raw_html"`
+	Source      string             `json:"source"`
+	FirstSeen   pgtype.Timestamptz `json:"first_seen"`
+	LastSeen    pgtype.Timestamptz `json:"last_seen"`
+	Active      bool               `json:"active"`
+}
+
+type JobTag struct {
+	JobID            pgtype.UUID        `json:"job_id"`
+	RoleType         string             `json:"role_type"`
+	Seniority        string             `json:"seniority"`
+	RemotePolicy     string             `json:"remote_policy"`
+	LocationNorm     string             `json:"location_norm"`
+	Country          string             `json:"country"`
+	TechStack        []string           `json:"tech_stack"`
+	EnrichmentSource string             `json:"enrichment_source"`
+	EnrichedAt       pgtype.Timestamptz `json:"enriched_at"`
+}
+
+type ScrapeRun struct {
+	ID          pgtype.UUID        `json:"id"`
+	StartedAt   pgtype.Timestamptz `json:"started_at"`
+	FinishedAt  pgtype.Timestamptz `json:"finished_at"`
+	Status      string             `json:"status"`
+	JobsAdded   int32              `json:"jobs_added"`
+	JobsUpdated int32              `json:"jobs_updated"`
+	JobsRemoved int32              `json:"jobs_removed"`
+	Error       string             `json:"error"`
+}
+
+type Session struct {
+	Token     string             `json:"token"`
+	UserID    pgtype.UUID        `json:"user_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type User struct {
-	ID        int32            `json:"id"`
-	Name      string           `json:"name"`
-	Email     string           `json:"email"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
-	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+	ID            pgtype.UUID        `json:"id"`
+	Email         string             `json:"email"`
+	PasswordHash  string             `json:"password_hash"`
+	LlmApiKey     string             `json:"llm_api_key"`
+	LlmProvider   string             `json:"llm_provider"`
+	LastVisitedAt pgtype.Timestamptz `json:"last_visited_at"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type UserCompany struct {
+	UserID    pgtype.UUID `json:"user_id"`
+	CompanyID pgtype.UUID `json:"company_id"`
+	Hidden    bool        `json:"hidden"`
+}
+
+type UserJob struct {
+	UserID    pgtype.UUID        `json:"user_id"`
+	JobID     pgtype.UUID        `json:"job_id"`
+	Status    string             `json:"status"`
+	StatusAt  pgtype.Timestamptz `json:"status_at"`
+	AppliedAt pgtype.Timestamptz `json:"applied_at"`
+	Notes     string             `json:"notes"`
 }

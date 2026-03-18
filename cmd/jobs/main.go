@@ -11,6 +11,11 @@ import (
 	httphandlers "github.com/justestif/go-jobs/internal/adapters/http"
 	"github.com/justestif/go-jobs/internal/adapters/http/middleware"
 	"github.com/justestif/go-jobs/internal/adapters/postgres"
+	"github.com/justestif/go-jobs/internal/adapters/scrapers"
+	"github.com/justestif/go-jobs/internal/cli"
+	"github.com/justestif/go-jobs/internal/core/domain"
+	"github.com/justestif/go-jobs/internal/core/ports"
+	"github.com/justestif/go-jobs/internal/core/services"
 )
 
 func main() {
@@ -20,7 +25,52 @@ func main() {
 	}
 	defer postgres.Close()
 
-	// Session manager
+	// ----------------------------------------------------------------
+	// Driven adapters (repos)
+	// ----------------------------------------------------------------
+	companyRepo := postgres.NewCompanyRepo(postgres.DB)
+	jobRepo := postgres.NewJobRepo(postgres.DB)
+	scrapeRunRepo := postgres.NewScrapeRunRepo(postgres.DB)
+
+	// ----------------------------------------------------------------
+	// Scraper adapters
+	// ----------------------------------------------------------------
+	scraperMap := map[domain.ATSType]ports.JobScraper{
+		domain.ATSGreenhouse: scrapers.NewGreenhouseAdapter(),
+		domain.ATSLever:      scrapers.NewLeverAdapter(),
+		domain.ATSAshby:      scrapers.NewAshbyAdapter(),
+	}
+	seeder := scrapers.NewSimplifySeeder()
+
+	// ----------------------------------------------------------------
+	// Core services
+	// ----------------------------------------------------------------
+	scrapeService := services.NewScrapeService(
+		companyRepo,
+		jobRepo,
+		scraperMap,
+		nil, // enricher — not wired until M2
+		scrapeRunRepo,
+		seeder,
+	)
+
+	// ----------------------------------------------------------------
+	// CLI — check if we're running a CLI command (any arg present)
+	// ----------------------------------------------------------------
+	if len(os.Args) > 1 {
+		cliServices := cli.Services{
+			Scrape: scrapeService,
+		}
+		rootCmd := cli.NewRootCmd(cliServices)
+		if err := rootCmd.Execute(); err != nil {
+			os.Exit(1)
+		}
+		return
+	}
+
+	// ----------------------------------------------------------------
+	// HTTP server
+	// ----------------------------------------------------------------
 	sessionSecret := []byte(os.Getenv("SESSION_SECRET"))
 	if len(sessionSecret) == 0 {
 		log.Fatal("SESSION_SECRET environment variable not set")
