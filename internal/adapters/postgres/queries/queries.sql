@@ -108,7 +108,7 @@ FROM jobs j
 JOIN companies c ON c.id = j.company_id
 WHERE j.id = ANY($1::uuid[]);
 
--- name: MarkJobsInactive :exec
+-- name: MarkJobsInactive :execrows
 UPDATE jobs
 SET active = FALSE
 WHERE company_id = $1

@@ -150,15 +150,15 @@ func (r *JobRepo) ListUnenriched(ctx context.Context, limit int) ([]domain.Job, 
 }
 
 // MarkInactive sets active=false for jobs no longer present at source.
-func (r *JobRepo) MarkInactive(ctx context.Context, companyID domain.CompanyID, activeExternalIDs []string) error {
-	err := r.q.MarkJobsInactive(ctx, queries.MarkJobsInactiveParams{
+func (r *JobRepo) MarkInactive(ctx context.Context, companyID domain.CompanyID, activeExternalIDs []string) (int, error) {
+	rows, err := r.q.MarkJobsInactive(ctx, queries.MarkJobsInactiveParams{
 		CompanyID: uuidToPg(companyID),
 		Column2:   activeExternalIDs,
 	})
 	if err != nil {
-		return fmt.Errorf("mark inactive jobs for company %s: %w", companyID, err)
+		return 0, fmt.Errorf("mark inactive jobs for company %s: %w", companyID, err)
 	}
-	return nil
+	return int(rows), nil
 }
 
 // SaveTags upserts enrichment tags for a job.

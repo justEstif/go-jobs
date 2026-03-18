@@ -518,7 +518,7 @@ func (q *Queries) ListUserJobsByStatus(ctx context.Context, arg ListUserJobsBySt
 	return items, nil
 }
 
-const markJobsInactive = `-- name: MarkJobsInactive :exec
+const markJobsInactive = `-- name: MarkJobsInactive :execrows
 UPDATE jobs
 SET active = FALSE
 WHERE company_id = $1
@@ -531,9 +531,12 @@ type MarkJobsInactiveParams struct {
 	Column2   []string    `json:"column_2"`
 }
 
-func (q *Queries) MarkJobsInactive(ctx context.Context, arg MarkJobsInactiveParams) error {
-	_, err := q.db.Exec(ctx, markJobsInactive, arg.CompanyID, arg.Column2)
-	return err
+func (q *Queries) MarkJobsInactive(ctx context.Context, arg MarkJobsInactiveParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markJobsInactive, arg.CompanyID, arg.Column2)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const saveSession = `-- name: SaveSession :exec

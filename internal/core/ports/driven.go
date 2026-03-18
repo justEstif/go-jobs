@@ -23,8 +23,9 @@ type JobRepository interface {
 	Search(ctx context.Context, filters domain.SearchFilters, userCtx *domain.UserSearchContext) ([]domain.Job, error)
 	// ListUnenriched returns jobs without a job_tags row, up to limit.
 	ListUnenriched(ctx context.Context, limit int) ([]domain.Job, error)
-	// MarkInactive sets active=false for jobs no longer present at source.
-	MarkInactive(ctx context.Context, companyID domain.CompanyID, activeExternalIDs []string) error
+	// MarkInactive sets active=false for jobs no longer present at source and
+	// returns the number of jobs deactivated.
+	MarkInactive(ctx context.Context, companyID domain.CompanyID, activeExternalIDs []string) (int, error)
 	SaveTags(ctx context.Context, tags domain.JobTags) error
 }
 

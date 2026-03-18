@@ -136,8 +136,11 @@ func (s *scrapeService) scrapeCompany(ctx context.Context, company domain.Compan
 	}
 
 	// Mark jobs not in this batch as inactive.
-	if err := s.jobs.MarkInactive(ctx, company.ID, seenIDs); err != nil {
+	deactivated, err := s.jobs.MarkInactive(ctx, company.ID, seenIDs)
+	if err != nil {
 		log.Printf("scrape: mark inactive for %q: %v", company.Name, err)
+	} else {
+		removed += deactivated
 	}
 
 	return added, updated, removed, nil
