@@ -42,7 +42,7 @@ jobs:
           go install github.com/a-h/templ/cmd/templ@latest
           templ generate
 
-      - name: Build
+      - name: Build CLI
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
@@ -58,6 +58,24 @@ jobs:
           go build \
             -ldflags="-s -w -X main.version=${TAG}" \
             -o "${OUTDIR}/jobs${EXT}" \
+            ./cmd/cli/
+
+      - name: Build Server (if not windows)
+        if: matrix.goos != 'windows'
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          TAG=${{ github.ref_name }}
+          OS=${{ matrix.goos }}
+          ARCH=${{ matrix.goarch }}
+          OUTDIR=dist/${OS}_${ARCH}
+          mkdir -p "$OUTDIR"
+
+          go build \
+            -ldflags="-s -w -X main.version=${TAG}" \
+            -o "${OUTDIR}/jobs-server" \
             ./cmd/jobs/
 
       - name: Archive
@@ -69,8 +87,10 @@ jobs:
           ARCHIVE=jobs_${TAG}_${OS}_${ARCH}
 
           if [ "$OS" = "windows" ]; then
-            cd "$OUTDIR" && zip "../../${ARCHIVE}.zip" ./* && cd -
+            # Windows: only CLI
+            cd "$OUTDIR" && zip "../../${ARCHIVE}.zip" ./jobs* && cd -
           else
+            # Unix: both CLI and server
             tar -czf "${ARCHIVE}.tar.gz" -C "$OUTDIR" .
           fi
 

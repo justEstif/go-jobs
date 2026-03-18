@@ -13,13 +13,13 @@ $EDITOR .env.production
 
 Required variables:
 
-| Variable | How to generate |
-|---|---|
-| `POSTGRES_PASSWORD` | `openssl rand -hex 16` |
-| `BASE_URL` | e.g. `https://jobs.yourdomain.com` |
-| `CSRF_KEY` | `openssl rand -hex 16` |
-| `SESSION_SECRET` | `openssl rand -hex 16` |
-| `ENCRYPTION_KEY` | `openssl rand -hex 32` |
+| Variable            | How to generate                    |
+| ------------------- | ---------------------------------- |
+| `POSTGRES_PASSWORD` | `openssl rand -hex 16`             |
+| `BASE_URL`          | e.g. `https://jobs.yourdomain.com` |
+| `CSRF_KEY`          | `openssl rand -hex 16`             |
+| `SESSION_SECRET`    | `openssl rand -hex 16`             |
+| `ENCRYPTION_KEY`    | `openssl rand -hex 32`             |
 
 **2. Start the stack**
 

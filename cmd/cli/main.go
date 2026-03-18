@@ -1,0 +1,180 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
+
+	"github.com/spf13/cobra"
+
+	"github.com/justestif/go-jobs/internal/cli"
+	"github.com/justestif/go-jobs/internal/adapters/enrichment"
+	"github.com/justestif/go-jobs/internal/adapters/httpclient"
+	"github.com/justestif/go-jobs/internal/adapters/postgres"
+	"github.com/justestif/go-jobs/internal/adapters/scrapers"
+	"github.com/justestif/go-jobs/internal/core/domain"
+	"github.com/justestif/go-jobs/internal/core/ports"
+	"github.com/justestif/go-jobs/internal/core/services"
+)
+
+// resolveBaseURL checks for --base-url flag or BASE_URL env var before cobra runs
+// Returns empty string for local mode, or the remote URL for remote mode
+func resolveBaseURL() string {
+	args := os.Args
+	for i := 1; i < len(args); i++ {
+		if args[i] == "--base-url" && i+1 < len(args) {
+			return args[i+1]
+		}
+		if len(args[i]) > 12 && args[i][:12] == "--base-url=" {
+			return args[i][12:]
+		}
+	}
+	return os.Getenv("BASE_URL")
+}
+
+// firstCommand returns the first non-flag argument, which determines if we're in remote CLI mode
+func firstCommand(args []string) string {
+	for _, arg := range args {
+		if arg != "" && !startsWithDash(arg) {
+			return arg
+		}
+	}
+	return ""
+}
+
+func startsWithDash(s string) bool {
+	return len(s) > 0 && s[0] == '-'
+}
+
+func runRemoteCLI(baseURL string, args []string) int {
+	// In remote mode, we need to pre-read the token before loading root command
+	// so we can pass it to the HTTP client adapter
+	token, err := cli.ReadStoredToken()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: Failed to read auth token: %v\n", err)
+		return 1
+	}
+
+	// Create HTTP client adapters with the token
+	authClient := &httpClientAuthAdapter{
+		baseURL: baseURL,
+		token:   token,
+	}
+
+	searchClient := &httpClientSearchAdapter{
+		baseURL: baseURL,
+		token:   token,
+	}
+
+	// These would implement the core ports, but for now we'll fail
+	// until they're implemented
+	fmt.Fprintf(os.Stderr, "Remote CLI mode not yet implemented. Use local mode or contact developer.\n")
+	return 1
+}
+
+func main() {
+	baseURL := resolveBaseURL()
+	
+	// Check if this should be a remote CLI session
+	if baseURL != "" && firstCommand(os.Args) != "" {
+		runRemoteCLI(baseURL)
+		return
+	}
+
+	// Local mode: wire up all services with DB access
+	ctx := context.Background()
+	services, err := setupLocalServices(ctx)
+	if err != nil {
+		log.Fatalf("Failed to setup services: %v", err)
+	}
+
+	rootCmd := cli.NewRootCmd(services)
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
+}
+
+// runRemoteCLI wires httpclient adapters targeting baseURL and executes the
+// cobra command tree. The DB is never initialised in this path.
+func runRemoteCLI(baseURL string) {
+	// Read the stored token for authenticated commands. An empty token is fine
+	// for public commands (register, login, search).
+	token, err := cli.ReadStoredToken()
+	if err != nil {
+		log.Fatalf("Failed to read stored token: %v", err)
+	}
+
+	c := httpclient.NewClient(baseURL, token)
+	authClient := httpclient.NewAuthClient(c)
+
+	cliServices := cli.Services{
+		Auth:        authClient,
+		Session:     authClient,
+		Search:      httpclient.NewSearchClient(c),
+		Application: httpclient.NewApplicationClient(c),
+		// Scrape, Enrich, Serve are not available in remote mode.
+	}
+
+	rootCmd := cli.NewRootCmd(cliServices)
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
+}
+
+// setupLocalServices wires up all the local services (DB, scrapers, enrichment)
+func setupLocalServices(ctx context.Context) (cli.Services, error) {
+	// Initialize database
+	if err := postgres.InitDB(); err != nil {
+		return cli.Services{}, fmt.Errorf("failed to initialize database: %w", err)
+	}
+
+	// Driven adapters (repos)
+	companyRepo := postgres.NewCompanyRepo(postgres.DB)
+	jobRepo := postgres.NewJobRepo(postgres.DB)
+	userRepo := postgres.NewUserRepo(postgres.DB)
+	userJobRepo := postgres.NewUserJobRepo(postgres.DB)
+	userCompanyRepo := postgres.NewUserCompanyRepo(postgres.DB)
+	scrapeRunRepo := postgres.NewScrapeRunRepo(postgres.DB)
+
+	// Scraper adapters
+	scraperMap := map[domain.ATSType]ports.JobScraper{
+		domain.ATSGreenhouse: scrapers.NewGreenhouseAdapter(),
+		domain.ATSLever:      scrapers.NewLeverAdapter(),
+		domain.ATSAshby:      scrapers.NewAshbyAdapter(),
+	}
+	seeder := scrapers.NewSimplifySeeder()
+
+	// Enrichment adapter (LLM tier disabled by default for CLI)
+	enricher := enrichment.NewTieredEnrichment(domain.LLMProvider(""), "")
+
+	// Core services
+	scrapeService := services.NewScrapeService(
+		companyRepo,
+		jobRepo,
+		scraperMap,
+		enricher,
+		scrapeRunRepo,
+		seeder,
+	)
+	enrichService := services.NewEnrichService(jobRepo, enricher)
+	searchService := services.NewJobSearchService(jobRepo)
+	applicationService := services.NewApplicationService(userJobRepo, jobRepo)
+	authService := services.NewAuthService(userRepo, userRepo)
+	userService := services.NewUserService(userRepo)
+	companyService := services.NewCompanyService(companyRepo, userCompanyRepo)
+	
+	serve := func(ctx context.Context) error {
+		return fmt.Errorf("server mode not available in CLI binary")
+	}
+
+	return cli.Services{
+		Scrape:      scrapeService,
+		Enrich:      enrichService,
+		Search:      searchService,
+		Application: applicationService,
+		Session:     userRepo,
+		Auth:        authService,
+		Serve:       serve,
+	}, nil
+}

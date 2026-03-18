@@ -51,3 +51,4 @@ static/css/tailwind.css
 *.db
 *.sqlite
 jobs
+/scripts/.env.production

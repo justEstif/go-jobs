@@ -10,11 +10,11 @@ const REPO = "justEstif/go-jobs";
 const VERSION = require("./package.json").version;
 
 const PLATFORM_MAP = {
-  "linux-x64":    { os: "linux",   arch: "amd64", ext: ".tar.gz" },
-  "linux-arm64":  { os: "linux",   arch: "arm64", ext: ".tar.gz" },
-  "darwin-x64":   { os: "darwin",  arch: "amd64", ext: ".tar.gz" },
-  "darwin-arm64": { os: "darwin",  arch: "arm64", ext: ".tar.gz" },
-  "win32-x64":    { os: "windows", arch: "amd64", ext: ".zip"    },
+  "linux-x64":    { os: "linux",   arch: "amd64", ext: ".tar.gz", files: ["jobs", "jobs-server"] },
+  "linux-arm64":  { os: "linux",   arch: "arm64", ext: ".tar.gz", files: ["jobs", "jobs-server"] },
+  "darwin-x64":   { os: "darwin",  arch: "amd64", ext: ".tar.gz", files: ["jobs", "jobs-server"] },
+  "darwin-arm64": { os: "darwin",  arch: "arm64", ext: ".tar.gz", files: ["jobs", "jobs-server"] },
+  "win32-x64":    { os: "windows", arch: "amd64", ext: ".zip",    files: ["jobs.exe"] },
 };
 
 const key = `${process.platform}-${process.arch}`;
@@ -73,9 +73,11 @@ download(url, tmpFile, (err) => {
 
   try {
     if (plat.ext === ".zip") {
+      // Windows: extract only jobs.exe
       execFileSync("unzip", ["-j", tmpFile, exe, "-d", binDir]);
     } else {
-      execFileSync("tar", ["-xzf", tmpFile, "--strip-components=0", "-C", binDir]);
+      // Unix: extract only jobs (ignore jobs-server)
+      execFileSync("tar", ["-xzf", tmpFile, "-C", binDir, exe]);
     }
     fs.chmodSync(outPath, 0o755);
     fs.unlinkSync(tmpFile);
