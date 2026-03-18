@@ -46,15 +46,11 @@ func (e *TieredEnricher) Enrich(ctx context.Context, job domain.Job) (domain.Job
 	// map it to a RoleType. We don't have a dedicated field on domain.Job for
 	// department after persistence, so derive from title when needed (tier 2).
 
-	// Tier 2: rule-based extraction.
+	// Tier 2: rule-based extraction. Rules always contribute at minimum
+	// Seniority (defaulting to Mid) and a TechStack scan, so the source
+	// label is always advanced to EnrichmentRules after this tier.
 	tags = applyRules(job, tags)
-	// Only upgrade the source label if rules actually contributed something
-	// beyond what ATS gave us. We check for non-zero Seniority as a proxy —
-	// rules always set seniority (at minimum to Mid), so if it was empty
-	// before rules ran, rules contributed.
-	if tags.Seniority != "" || len(tags.TechStack) > 0 {
-		tags.EnrichmentSource = domain.EnrichmentRules
-	}
+	tags.EnrichmentSource = domain.EnrichmentRules
 
 	// Tier 3: LLM enrichment for any remaining gaps (optional).
 	llmTags, err := e.llm.enrich(ctx, job, tags)

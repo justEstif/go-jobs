@@ -2,10 +2,14 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/justestif/go-jobs/internal/adapters/postgres/queries"
 	"github.com/justestif/go-jobs/internal/core/domain"
+	"github.com/justestif/go-jobs/internal/core/ports"
 )
 
 // UserJobRepo implements ports.UserJobRepository against PostgreSQL.
@@ -38,12 +42,16 @@ func (r *UserJobRepo) Upsert(ctx context.Context, userJob domain.UserJob) error 
 }
 
 // GetUserJob retrieves a user's pipeline state for a specific job.
+// Returns ports.ErrNotFound when no row exists for the (userID, jobID) pair.
 func (r *UserJobRepo) GetUserJob(ctx context.Context, userID domain.UserID, jobID domain.JobID) (domain.UserJob, error) {
 	row, err := r.q.GetUserJob(ctx, queries.GetUserJobParams{
 		UserID: uuidToPg(userID),
 		JobID:  uuidToPg(jobID),
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.UserJob{}, fmt.Errorf("get user_job (user=%s, job=%s): %w", userID, jobID, ports.ErrNotFound)
+		}
 		return domain.UserJob{}, fmt.Errorf("get user_job (user=%s, job=%s): %w", userID, jobID, err)
 	}
 	return domainUserJobFromDB(row), nil

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -35,9 +36,13 @@ func NewApplicationService(userJobs ports.UserJobRepository, jobs ports.JobRepos
 //   - Setting StatusInterested on an already-Applied (or later) job is a no-op
 //     to prevent moving backwards in the pipeline.
 func (s *applicationService) SetStatus(ctx context.Context, userID domain.UserID, jobID domain.JobID, status domain.ApplicationStatus) error {
-	// Read existing state; ignore not-found (first time tracking this job).
+	// Read existing state. Not-found means first time tracking this job.
+	// Propagate genuine infrastructure errors immediately.
 	existing, err := s.userJobs.GetUserJob(ctx, userID, jobID)
-	notFound := err != nil // treat any error as "not found" for first-track
+	if err != nil && !errors.Is(err, ports.ErrNotFound) {
+		return fmt.Errorf("set status: read existing user_job: %w", err)
+	}
+	notFound := errors.Is(err, ports.ErrNotFound)
 
 	// Business rule: setting Applied must also set Interested first.
 	if status == domain.StatusApplied && (notFound || existing.Status != domain.StatusInterested) {
@@ -53,7 +58,10 @@ func (s *applicationService) SetStatus(ctx context.Context, userID domain.UserID
 				return fmt.Errorf("set status: auto-interested: %w", upsertErr)
 			}
 			// Re-read to get correct state for the applied upsert below.
-			existing, _ = s.userJobs.GetUserJob(ctx, userID, jobID)
+			existing, err = s.userJobs.GetUserJob(ctx, userID, jobID)
+			if err != nil {
+				return fmt.Errorf("set status: re-read after auto-interested: %w", err)
+			}
 			notFound = false
 		}
 		// If already past interested (applied/interviewing/etc), skip auto-set.

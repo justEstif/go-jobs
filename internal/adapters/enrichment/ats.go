@@ -10,9 +10,9 @@ import (
 // the raw job payload. This is tier 1 — free, instant, no external calls.
 //
 // Fields extracted here:
-//   - RemotePolicy  — from job.Location and scraped WorkplaceType (stored in Description prefix by scraper)
-//   - Country       — ISO 2-letter code if the scraper captured it
-//   - RoleType      — mapped from Department string
+//   - RemotePolicy  — from job.Location keywords ("remote", "hybrid", "onsite")
+//   - Country       — ISO 2-letter code when job.Location is exactly 2 uppercase chars
+//   - LocationNorm  — raw location string as-is; later tiers may normalise further
 //
 // Returns the partially-filled tags; zero values indicate the field was not
 // available from ATS data and should be filled by a later tier.
@@ -45,33 +45,6 @@ func extractFromATS(job domain.Job) domain.JobTags {
 	}
 
 	return tags
-}
-
-// departmentToRoleType maps an ATS department string to a domain.RoleType.
-// Returns domain.RoleOther when no mapping matches.
-func departmentToRoleType(department string) domain.RoleType {
-	d := strings.ToLower(department)
-
-	switch {
-	case containsAny(d, "engineer", "software", "backend", "frontend", "platform", "infrastructure", "devops", "sre", "security", "mobile", "ios", "android", "ml", "machine learning", "ai", "data engineer"):
-		return domain.RoleEngineering
-	case containsAny(d, "design", "ux", "ui", "product design", "brand", "visual"):
-		return domain.RoleDesign
-	case containsAny(d, "product", "pm ", "program manager"):
-		return domain.RoleProduct
-	case containsAny(d, "data science", "analytics", "analyst", "business intelligence", "bi "):
-		return domain.RoleData
-	case containsAny(d, "marketing", "growth", "content", "seo", "brand"):
-		return domain.RoleMarketing
-	case containsAny(d, "sales", "account executive", "business development", "revenue", "partnerships"):
-		return domain.RoleSales
-	case containsAny(d, "operations", "ops", "support", "customer success", "hr", "people", "recruiting", "legal", "finance", "accounting"):
-		return domain.RoleOperations
-	case containsAny(d, "finance", "accounting", "fp&a", "treasury"):
-		return domain.RoleFinance
-	default:
-		return domain.RoleOther
-	}
 }
 
 // containsAny returns true if s contains any of the given substrings.

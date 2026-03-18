@@ -1,6 +1,7 @@
 package httphandlers
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"strconv"
@@ -40,8 +41,11 @@ func (h *JobSearchHandler) List(w http.ResponseWriter, r *http.Request) {
 	userID, loggedIn := middleware.UserIDFromContext(r.Context())
 	if loggedIn {
 		// Touch last visited asynchronously — best-effort, don't block the request.
+		// Use WithoutCancel so the goroutine's DB write survives handler return,
+		// which cancels r.Context().
+		touchCtx := context.WithoutCancel(r.Context())
 		go func(uid [16]byte) {
-			if err := h.user.TouchLastVisited(r.Context(), uid); err != nil {
+			if err := h.user.TouchLastVisited(touchCtx, uid); err != nil {
 				log.Printf("touch last visited: %v", err)
 			}
 		}(userID)
