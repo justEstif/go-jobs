@@ -31,6 +31,8 @@ func main() {
 	// ----------------------------------------------------------------
 	companyRepo := postgres.NewCompanyRepo(postgres.DB)
 	jobRepo := postgres.NewJobRepo(postgres.DB)
+	userRepo := postgres.NewUserRepo(postgres.DB)
+	userJobRepo := postgres.NewUserJobRepo(postgres.DB)
 	scrapeRunRepo := postgres.NewScrapeRunRepo(postgres.DB)
 
 	// ----------------------------------------------------------------
@@ -62,15 +64,18 @@ func main() {
 	)
 	enrichService := services.NewEnrichService(jobRepo, enricher)
 	searchService := services.NewJobSearchService(jobRepo)
+	applicationService := services.NewApplicationService(userJobRepo, jobRepo)
 
 	// ----------------------------------------------------------------
 	// CLI — check if we're running a CLI command (any arg present)
 	// ----------------------------------------------------------------
 	if len(os.Args) > 1 {
 		cliServices := cli.Services{
-			Scrape: scrapeService,
-			Enrich: enrichService,
-			Search: searchService,
+			Scrape:      scrapeService,
+			Enrich:      enrichService,
+			Search:      searchService,
+			Application: applicationService,
+			Session:     userRepo,
 		}
 		rootCmd := cli.NewRootCmd(cliServices)
 		if err := rootCmd.Execute(); err != nil {
