@@ -220,15 +220,16 @@ type ScrapeRun struct {
 //
 // URL encoding: repeated params (?seniority=senior&seniority=mid).
 type SearchFilters struct {
-	Query        string          // free text (title / company name)
-	RoleTypes    []RoleType      // OR — match any
-	Seniorities  []Seniority     // OR — match any
-	RemotePolicy []WorkplaceType // OR — match any
-	Countries    []string        // OR — ISO 2-letter codes
-	TechStack    []string        // AND — job must mention all terms
-	CompanyIDs   []CompanyID     // OR — match any
-	Limit        int
-	Offset       int
+	Query            string          // free text (title / company name)
+	RoleTypes        []RoleType      // OR — match any
+	Seniorities      []Seniority     // OR — match any
+	RemotePolicy     []WorkplaceType // OR — match any
+	Countries        []string        // OR — ISO 2-letter codes
+	TechStack        []string        // AND — job must mention all terms
+	CompanyIDs       []CompanyID     // OR — match any
+	PostedWithinDays int             // only jobs first_seen within N days; <=0 disables
+	Limit            int
+	Offset           int
 }
 
 // UserSearchContext carries identity-dependent search options.

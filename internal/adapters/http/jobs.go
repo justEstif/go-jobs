@@ -3,6 +3,7 @@ package httphandlers
 import (
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -97,9 +98,13 @@ func parseSearchFilters(r *http.Request) domain.SearchFilters {
 	q := r.URL.Query()
 
 	f := domain.SearchFilters{
-		Query: q.Get("q"),
-		Limit: 50,
+		Query:            q.Get("q"),
+		PostedWithinDays: parsePostedWithin(q.Get("posted_within")),
+		Limit:            parsePerPage(q.Get("per_page")),
 	}
+
+	page := parsePage(q.Get("page"))
+	f.Offset = (page - 1) * f.Limit
 
 	for _, v := range q["role"] {
 		f.RoleTypes = append(f.RoleTypes, domain.RoleType(v))
@@ -120,4 +125,43 @@ func parseSearchFilters(r *http.Request) domain.SearchFilters {
 	}
 
 	return f
+}
+
+func parsePage(raw string) int {
+	if raw == "" {
+		return 1
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v < 1 {
+		return 1
+	}
+	return v
+}
+
+func parsePerPage(raw string) int {
+	v, err := strconv.Atoi(raw)
+	if err != nil || v <= 0 {
+		return 25
+	}
+	switch v {
+	case 25, 50, 100:
+		return v
+	default:
+		return 25
+	}
+}
+
+func parsePostedWithin(raw string) int {
+	switch raw {
+	case "24h":
+		return 1
+	case "7d":
+		return 7
+	case "14d":
+		return 14
+	case "90d", "":
+		return 90
+	default:
+		return 90
+	}
 }

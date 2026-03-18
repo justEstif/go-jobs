@@ -2,6 +2,8 @@ package components
 
 import (
 	"fmt"
+	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,7 +21,7 @@ templ JobsListPage(jobs []domain.Job, filters domain.SearchFilters, loggedIn boo
 			<!-- Main content -->
 			<div class="flex-1 min-w-0">
 				<!-- Search bar -->
-				<form method="GET" action="/" class="mb-4 flex gap-2">
+				<form method="GET" action="/" class="mb-4 flex flex-wrap gap-2 items-center">
 					<input
 						type="text"
 						name="q"
@@ -29,6 +31,18 @@ templ JobsListPage(jobs []domain.Job, filters domain.SearchFilters, loggedIn boo
 						autocomplete="off"
 					/>
 					<button type="submit" class="btn btn-primary btn-sm">Search</button>
+					<label class="text-xs text-base-content/60 ml-2">Posted</label>
+					<select name="posted_within" class="select select-bordered select-sm" onchange="this.form.submit()">
+						for _, opt := range postedWithinOptions() {
+							<option value={ opt[0] } selected?={ opt[0] == postedWithinParam(filters.PostedWithinDays) }>{ opt[1] }</option>
+						}
+					</select>
+					<label class="text-xs text-base-content/60">Per page</label>
+					<select name="per_page" class="select select-bordered select-sm" onchange="this.form.submit()">
+						for _, n := range perPageOptions() {
+							<option value={ strconv.Itoa(n) } selected?={ filters.Limit == n }>{ strconv.Itoa(n) }</option>
+						}
+					</select>
 					if filters.Query != "" || hasFilters(filters) {
 						<a href="/" class="btn btn-ghost btn-sm">Clear</a>
 					}
@@ -69,6 +83,7 @@ templ JobsListPage(jobs []domain.Job, filters domain.SearchFilters, loggedIn boo
 							@JobCard(job, loggedIn, csrfToken)
 						}
 					</div>
+					@PaginationControls(filters, len(jobs))
 				}
 			</div>
 		</div>
@@ -82,6 +97,8 @@ templ FilterPanel(filters domain.SearchFilters) {
 			if filters.Query != "" {
 				<input type="hidden" name="q" value={ filters.Query }/>
 			}
+			<input type="hidden" name="posted_within" value={ postedWithinParam(filters.PostedWithinDays) }/>
+			<input type="hidden" name="per_page" value={ strconv.Itoa(filters.Limit) }/>
 			<div class="space-y-5">
 				<!-- Role type -->
 				@filterSection("Role", "role", roleTypeOptions(), selectedStrings(roleTypeStrings(filters.RoleTypes)))
@@ -96,6 +113,20 @@ templ FilterPanel(filters domain.SearchFilters) {
 			<a href="/" class="btn btn-ghost btn-xs w-full mt-1">Reset</a>
 		</form>
 	</aside>
+}
+
+templ PaginationControls(filters domain.SearchFilters, resultCount int) {
+	<div class="mt-4 flex items-center justify-between text-sm">
+		<span class="text-base-content/50">Page { strconv.Itoa(currentPage(filters)) }</span>
+		<div class="flex gap-2">
+			if currentPage(filters) > 1 {
+				<a class="btn btn-xs btn-outline" href={ templ.SafeURL(pageHref(filters, currentPage(filters)-1)) }>Previous</a>
+			}
+			if resultCount == filters.Limit {
+				<a class="btn btn-xs btn-outline" href={ templ.SafeURL(pageHref(filters, currentPage(filters)+1)) }>Next</a>
+			}
+		</div>
+	</div>
 }
 
 // filterSection renders a labeled checkbox group.
@@ -299,12 +330,73 @@ func daysAgo(t time.Time) string {
 
 func hasFilters(f domain.SearchFilters) bool {
 	return len(f.RoleTypes) > 0 || len(f.Seniorities) > 0 || len(f.RemotePolicy) > 0 ||
-		len(f.Countries) > 0 || len(f.TechStack) > 0
+		len(f.Countries) > 0 || len(f.TechStack) > 0 || f.PostedWithinDays != 90
 }
 
 func newOnlyHref(f domain.SearchFilters) string {
 	_ = f
 	return "/?new=1"
+}
+
+func currentPage(f domain.SearchFilters) int {
+	if f.Limit <= 0 {
+		return 1
+	}
+	page := (f.Offset / f.Limit) + 1
+	if page < 1 {
+		return 1
+	}
+	return page
+}
+
+func pageHref(f domain.SearchFilters, page int) string {
+	if page < 1 {
+		page = 1
+	}
+	v := url.Values{}
+	if f.Query != "" {
+		v.Set("q", f.Query)
+	}
+	for _, r := range roleTypeStrings(f.RoleTypes) {
+		v.Add("role", r)
+	}
+	for _, s := range seniorityStrings(f.Seniorities) {
+		v.Add("seniority", s)
+	}
+	for _, r := range remotePolicyStrings(f.RemotePolicy) {
+		v.Add("remote", r)
+	}
+	for _, c := range f.Countries {
+		v.Add("country", c)
+	}
+	for _, t := range f.TechStack {
+		v.Add("tech", t)
+	}
+	v.Set("posted_within", postedWithinParam(f.PostedWithinDays))
+	v.Set("per_page", strconv.Itoa(f.Limit))
+	v.Set("page", strconv.Itoa(page))
+	return "/?" + v.Encode()
+}
+
+func postedWithinParam(days int) string {
+	switch days {
+	case 1:
+		return "24h"
+	case 7:
+		return "7d"
+	case 14:
+		return "14d"
+	default:
+		return "90d"
+	}
+}
+
+func postedWithinOptions() [][2]string {
+	return [][2]string{{"24h", "Last 24h"}, {"7d", "Last 7d"}, {"14d", "Last 14d"}, {"90d", "Last 90d"}}
+}
+
+func perPageOptions() []int {
+	return []int{25, 50, 100}
 }
 
 func selectedStrings(vals []string) map[string]bool {
@@ -419,5 +511,3 @@ func notesFromUserJob(uj *domain.UserJob) string {
 	}
 	return uj.Notes
 }
-
-

@@ -26,6 +26,9 @@ func newSearchCmd(services Services) *cobra.Command {
 		companyIDs     []string
 		limit          int
 		offset         int
+		page           int
+		perPage        int
+		postedWithin   string
 		format         string
 	)
 
@@ -44,7 +47,7 @@ Filter semantics:
   go-jobs search --role engineering --seniority senior --seniority mid
   go-jobs search --remote remote --country US
   go-jobs search --tech Go --tech PostgreSQL
-  go-jobs search --limit 20 --format table`,
+  go-jobs search --posted-within 7d --per-page 25 --page 2 --format table`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 
@@ -70,16 +73,31 @@ Filter semantics:
 				compIDs = append(compIDs, id)
 			}
 
+			postedWithinDays, err := parsePostedWithinFlag(postedWithin)
+			if err != nil {
+				return err
+			}
+
+			resolvedLimit := limit
+			resolvedOffset := offset
+			if perPage > 0 {
+				resolvedLimit = perPage
+				if page > 0 {
+					resolvedOffset = (page - 1) * perPage
+				}
+			}
+
 			filters := domain.SearchFilters{
-				Query:        query,
-				RoleTypes:    roleTypes,
-				Seniorities:  sens,
-				RemotePolicy: remote,
-				Countries:    countries,
-				TechStack:    techStack,
-				CompanyIDs:   compIDs,
-				Limit:        limit,
-				Offset:       offset,
+				Query:            query,
+				RoleTypes:        roleTypes,
+				Seniorities:      sens,
+				RemotePolicy:     remote,
+				Countries:        countries,
+				TechStack:        techStack,
+				CompanyIDs:       compIDs,
+				PostedWithinDays: postedWithinDays,
+				Limit:            resolvedLimit,
+				Offset:           resolvedOffset,
 			}
 
 			jobs, err := services.Search.Search(ctx, filters, nil)
@@ -105,9 +123,29 @@ Filter semantics:
 	cmd.Flags().StringArrayVar(&companyIDs, "company", nil, "Filter by company UUID (repeatable)")
 	cmd.Flags().IntVar(&limit, "limit", 50, "Maximum number of results")
 	cmd.Flags().IntVar(&offset, "offset", 0, "Result offset for pagination")
+	cmd.Flags().IntVar(&page, "page", 1, "1-based page number (used with --per-page)")
+	cmd.Flags().IntVar(&perPage, "per-page", 0, "Results per page (overrides --limit when set)")
+	cmd.Flags().StringVar(&postedWithin, "posted-within", "90d", "Recency filter: 24h, 7d, 14d, 90d, or all")
 	cmd.Flags().StringVar(&format, "format", "json", "Output format: json (default) or table")
 
 	return cmd
+}
+
+func parsePostedWithinFlag(raw string) (int, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "24h":
+		return 1, nil
+	case "7d":
+		return 7, nil
+	case "14d":
+		return 14, nil
+	case "90d", "":
+		return 90, nil
+	case "all", "0":
+		return 0, nil
+	default:
+		return 0, fmt.Errorf("invalid --posted-within value %q (use 24h, 7d, 14d, 90d, all)", raw)
+	}
 }
 
 // printJSON marshals jobs to JSON and writes them to stdout.

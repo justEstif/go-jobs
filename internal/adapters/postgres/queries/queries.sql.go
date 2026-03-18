@@ -612,9 +612,13 @@ WHERE j.active = TRUE
     array_length($7::uuid[], 1) IS NULL
     OR j.company_id = ANY($7::uuid[])
   )
+  AND (
+    $8 <= 0
+    OR j.first_seen >= NOW() - ($8 * INTERVAL '1 day')
+  )
 ORDER BY j.first_seen DESC
-LIMIT $8
-OFFSET $9
+LIMIT $9
+OFFSET $10
 `
 
 type SearchJobsParams struct {
@@ -625,6 +629,7 @@ type SearchJobsParams struct {
 	Column5 []string      `json:"column_5"`
 	Column6 []string      `json:"column_6"`
 	Column7 []pgtype.UUID `json:"column_7"`
+	Column8 interface{}   `json:"column_8"`
 	Limit   int32         `json:"limit"`
 	Offset  int32         `json:"offset"`
 }
@@ -666,8 +671,9 @@ type SearchJobsRow struct {
 //	$5  countries    TEXT[]        — OR filter on job_tags.country
 //	$6  tech_stack   TEXT[]        — AND filter: job_tags.tech_stack must contain all items
 //	$7  company_ids  UUID[]        — OR filter on jobs.company_id
-//	$8  limit        INT
-//	$9  offset       INT
+//	$8  posted_within_days INT     — only jobs first_seen in last N days (<=0 disables)
+//	$9  limit        INT
+//	$10 offset       INT
 func (q *Queries) SearchJobs(ctx context.Context, arg SearchJobsParams) ([]SearchJobsRow, error) {
 	rows, err := q.db.Query(ctx, searchJobs,
 		arg.Column1,
@@ -677,6 +683,7 @@ func (q *Queries) SearchJobs(ctx context.Context, arg SearchJobsParams) ([]Searc
 		arg.Column5,
 		arg.Column6,
 		arg.Column7,
+		arg.Column8,
 		arg.Limit,
 		arg.Offset,
 	)

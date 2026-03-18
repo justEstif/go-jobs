@@ -119,6 +119,7 @@ func (r *JobRepo) Search(ctx context.Context, filters domain.SearchFilters, user
 		Column5: filters.Countries,
 		Column6: filters.TechStack,
 		Column7: companyIDs,
+		Column8: int32(filters.PostedWithinDays),
 		Limit:   int32(limit),
 		Offset:  int32(offset),
 	})

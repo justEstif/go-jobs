@@ -56,3 +56,10 @@ go build ./...
 mise run db-migrate
 mise run db-rollback
 ```
+
+## Runtime behavior
+
+- `go-jobs` (no CLI args) starts the web server and a background scheduler.
+- Scheduler cadence is controlled by `SCRAPE_INTERVAL` (Go duration, default `6h`).
+- Enrichment batch size per scheduled run is controlled by `ENRICH_LIMIT` (default `1000`).
+- Jobs are retained in the database; browse views default to jobs posted in the last 90 days.
