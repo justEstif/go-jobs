@@ -76,8 +76,13 @@ download(url, tmpFile, (err) => {
       // Windows: extract only jobs.exe
       execFileSync("unzip", ["-j", tmpFile, exe, "-d", binDir]);
     } else {
-      // Unix: extract only jobs (ignore jobs-server)
-      execFileSync("tar", ["-xzf", tmpFile, "-C", binDir, exe]);
+      // Unix: extract all files then clean up
+      execFileSync("tar", ["-xzf", tmpFile, "-C", binDir]);
+      // Remove jobs-server if it exists
+      const serverPath = path.join(binDir, "jobs-server");
+      if (fs.existsSync(serverPath)) {
+        fs.unlinkSync(serverPath);
+      }
     }
     fs.chmodSync(outPath, 0o755);
     fs.unlinkSync(tmpFile);
