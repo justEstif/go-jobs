@@ -127,6 +127,41 @@ func domainJobFromUnenrichedRow(r queries.ListUnenrichedJobsRow) domain.Job {
 	}
 }
 
+// domainJobFromSearchRow maps a queries.SearchJobsRow to domain.Job,
+// including the enrichment tags when present (LEFT JOIN so tags may be NULL).
+func domainJobFromSearchRow(r queries.SearchJobsRow) domain.Job {
+	job := domain.Job{
+		ID:          pgToUUID(r.ID),
+		CompanyID:   pgToUUID(r.CompanyID),
+		CompanyName: r.CompanyName,
+		ExternalID:  r.ExternalID,
+		Title:       r.Title,
+		URL:         r.Url,
+		Location:    r.Location,
+		Description: r.Description,
+		RawHTML:     r.RawHtml,
+		Source:      domain.ATSType(r.Source),
+		FirstSeen:   pgToTime(r.FirstSeen),
+		LastSeen:    pgToTime(r.LastSeen),
+		Active:      r.Active,
+	}
+	// Tags are present only when the job has been enriched (LEFT JOIN).
+	if r.EnrichmentSource.Valid {
+		job.Tags = &domain.JobTags{
+			JobID:            pgToUUID(r.ID),
+			RoleType:         domain.RoleType(r.RoleType.String),
+			Seniority:        domain.Seniority(r.Seniority.String),
+			RemotePolicy:     domain.WorkplaceType(r.RemotePolicy.String),
+			LocationNorm:     r.LocationNorm.String,
+			Country:          r.Country.String,
+			TechStack:        r.TechStack,
+			EnrichmentSource: domain.EnrichmentSource(r.EnrichmentSource.String),
+			EnrichedAt:       pgToTime(r.EnrichedAt),
+		}
+	}
+	return job
+}
+
 // domainUserFromDB maps a queries.User to domain.User.
 func domainUserFromDB(u queries.User) domain.User {
 	return domain.User{

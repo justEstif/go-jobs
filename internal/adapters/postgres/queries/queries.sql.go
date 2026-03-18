@@ -556,6 +556,170 @@ func (q *Queries) SaveSession(ctx context.Context, arg SaveSessionParams) error 
 	return err
 }
 
+const searchJobs = `-- name: SearchJobs :many
+SELECT
+    j.id,
+    j.company_id,
+    c.name AS company_name,
+    j.external_id,
+    j.title,
+    j.url,
+    j.location,
+    j.description,
+    j.raw_html,
+    j.source,
+    j.first_seen,
+    j.last_seen,
+    j.active,
+    jt.role_type,
+    jt.seniority,
+    jt.remote_policy,
+    jt.location_norm,
+    jt.country,
+    jt.tech_stack,
+    jt.enrichment_source,
+    jt.enriched_at
+FROM jobs j
+JOIN companies c ON c.id = j.company_id
+LEFT JOIN job_tags jt ON jt.job_id = j.id
+WHERE j.active = TRUE
+  AND (
+    $1 = ''
+    OR j.title ILIKE '%' || $1 || '%'
+    OR c.name  ILIKE '%' || $1 || '%'
+  )
+  AND (
+    array_length($2::text[], 1) IS NULL
+    OR jt.role_type = ANY($2::text[])
+  )
+  AND (
+    array_length($3::text[], 1) IS NULL
+    OR jt.seniority = ANY($3::text[])
+  )
+  AND (
+    array_length($4::text[], 1) IS NULL
+    OR jt.remote_policy = ANY($4::text[])
+  )
+  AND (
+    array_length($5::text[], 1) IS NULL
+    OR jt.country = ANY($5::text[])
+  )
+  AND (
+    array_length($6::text[], 1) IS NULL
+    OR $6::text[] <@ jt.tech_stack
+  )
+  AND (
+    array_length($7::uuid[], 1) IS NULL
+    OR j.company_id = ANY($7::uuid[])
+  )
+ORDER BY j.first_seen DESC
+LIMIT $8
+OFFSET $9
+`
+
+type SearchJobsParams struct {
+	Column1 interface{}   `json:"column_1"`
+	Column2 []string      `json:"column_2"`
+	Column3 []string      `json:"column_3"`
+	Column4 []string      `json:"column_4"`
+	Column5 []string      `json:"column_5"`
+	Column6 []string      `json:"column_6"`
+	Column7 []pgtype.UUID `json:"column_7"`
+	Limit   int32         `json:"limit"`
+	Offset  int32         `json:"offset"`
+}
+
+type SearchJobsRow struct {
+	ID               pgtype.UUID        `json:"id"`
+	CompanyID        pgtype.UUID        `json:"company_id"`
+	CompanyName      string             `json:"company_name"`
+	ExternalID       string             `json:"external_id"`
+	Title            string             `json:"title"`
+	Url              string             `json:"url"`
+	Location         string             `json:"location"`
+	Description      string             `json:"description"`
+	RawHtml          string             `json:"raw_html"`
+	Source           string             `json:"source"`
+	FirstSeen        pgtype.Timestamptz `json:"first_seen"`
+	LastSeen         pgtype.Timestamptz `json:"last_seen"`
+	Active           bool               `json:"active"`
+	RoleType         pgtype.Text        `json:"role_type"`
+	Seniority        pgtype.Text        `json:"seniority"`
+	RemotePolicy     pgtype.Text        `json:"remote_policy"`
+	LocationNorm     pgtype.Text        `json:"location_norm"`
+	Country          pgtype.Text        `json:"country"`
+	TechStack        []string           `json:"tech_stack"`
+	EnrichmentSource pgtype.Text        `json:"enrichment_source"`
+	EnrichedAt       pgtype.Timestamptz `json:"enriched_at"`
+}
+
+// Filters jobs using multi-dimensional criteria. All slice parameters use OR
+// semantics within the field; tech_stack uses AND semantics (job must mention
+// all specified terms). Passing an empty slice disables that filter.
+//
+// Parameters:
+//
+//	$1  query        TEXT          — free-text match on title or company name ('' disables)
+//	$2  role_types   TEXT[]        — OR filter on job_tags.role_type
+//	$3  seniorities  TEXT[]        — OR filter on job_tags.seniority
+//	$4  remote_policies TEXT[]     — OR filter on job_tags.remote_policy
+//	$5  countries    TEXT[]        — OR filter on job_tags.country
+//	$6  tech_stack   TEXT[]        — AND filter: job_tags.tech_stack must contain all items
+//	$7  company_ids  UUID[]        — OR filter on jobs.company_id
+//	$8  limit        INT
+//	$9  offset       INT
+func (q *Queries) SearchJobs(ctx context.Context, arg SearchJobsParams) ([]SearchJobsRow, error) {
+	rows, err := q.db.Query(ctx, searchJobs,
+		arg.Column1,
+		arg.Column2,
+		arg.Column3,
+		arg.Column4,
+		arg.Column5,
+		arg.Column6,
+		arg.Column7,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchJobsRow{}
+	for rows.Next() {
+		var i SearchJobsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.CompanyName,
+			&i.ExternalID,
+			&i.Title,
+			&i.Url,
+			&i.Location,
+			&i.Description,
+			&i.RawHtml,
+			&i.Source,
+			&i.FirstSeen,
+			&i.LastSeen,
+			&i.Active,
+			&i.RoleType,
+			&i.Seniority,
+			&i.RemotePolicy,
+			&i.LocationNorm,
+			&i.Country,
+			&i.TechStack,
+			&i.EnrichmentSource,
+			&i.EnrichedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setUserCompanyHidden = `-- name: SetUserCompanyHidden :exec
 
 INSERT INTO user_companies (user_id, company_id, hidden)

@@ -10,6 +10,7 @@ import (
 type Services struct {
 	Scrape ports.ScrapeService
 	Enrich ports.EnrichService
+	Search ports.JobSearchService
 }
 
 // NewRootCmd builds the cobra root command with all sub-commands attached.
@@ -23,6 +24,7 @@ func NewRootCmd(services Services) *cobra.Command {
 
 	root.AddCommand(newScrapeCmd(services))
 	root.AddCommand(newEnrichCmd(services))
+	root.AddCommand(newSearchCmd(services))
 
 	return root
 }

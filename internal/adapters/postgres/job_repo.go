@@ -80,20 +80,54 @@ func (r *JobRepo) GetByIDs(ctx context.Context, ids []domain.JobID) ([]domain.Jo
 
 // Search returns jobs matching filters.
 //
-// For M1 this returns all active jobs up to the requested limit; full
-// multi-dimensional filtering is added in M3.
+// Applies multi-dimensional filtering via the SearchJobs query. All slice
+// fields use OR semantics; TechStack uses AND semantics. userCtx is reserved
+// for future user-context features (not yet used).
 func (r *JobRepo) Search(ctx context.Context, filters domain.SearchFilters, userCtx *domain.UserSearchContext) ([]domain.Job, error) {
 	limit := filters.Limit
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := r.q.ListUnenrichedJobs(ctx, int32(limit))
+	offset := filters.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	// Convert domain types to the query parameter types.
+	roleTypes := make([]string, len(filters.RoleTypes))
+	for i, rt := range filters.RoleTypes {
+		roleTypes[i] = string(rt)
+	}
+	seniorities := make([]string, len(filters.Seniorities))
+	for i, s := range filters.Seniorities {
+		seniorities[i] = string(s)
+	}
+	remotePolicies := make([]string, len(filters.RemotePolicy))
+	for i, rp := range filters.RemotePolicy {
+		remotePolicies[i] = string(rp)
+	}
+	companyIDs := make([]pgtype.UUID, len(filters.CompanyIDs))
+	for i, id := range filters.CompanyIDs {
+		companyIDs[i] = uuidToPg(id)
+	}
+
+	rows, err := r.q.SearchJobs(ctx, queries.SearchJobsParams{
+		Column1: filters.Query,
+		Column2: roleTypes,
+		Column3: seniorities,
+		Column4: remotePolicies,
+		Column5: filters.Countries,
+		Column6: filters.TechStack,
+		Column7: companyIDs,
+		Limit:   int32(limit),
+		Offset:  int32(offset),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("search jobs: %w", err)
 	}
-	jobs := make([]domain.Job, 0, len(rows))
-	for _, row := range rows {
-		jobs = append(jobs, domainJobFromUnenrichedRow(row))
+	jobs := make([]domain.Job, len(rows))
+	for i, row := range rows {
+		jobs[i] = domainJobFromSearchRow(row)
 	}
 	return jobs, nil
 }

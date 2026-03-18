@@ -125,6 +125,80 @@ WHERE jt.job_id IS NULL
 ORDER BY j.first_seen ASC
 LIMIT $1;
 
+-- name: SearchJobs :many
+-- Filters jobs using multi-dimensional criteria. All slice parameters use OR
+-- semantics within the field; tech_stack uses AND semantics (job must mention
+-- all specified terms). Passing an empty slice disables that filter.
+--
+-- Parameters:
+--   $1  query        TEXT          — free-text match on title or company name ('' disables)
+--   $2  role_types   TEXT[]        — OR filter on job_tags.role_type
+--   $3  seniorities  TEXT[]        — OR filter on job_tags.seniority
+--   $4  remote_policies TEXT[]     — OR filter on job_tags.remote_policy
+--   $5  countries    TEXT[]        — OR filter on job_tags.country
+--   $6  tech_stack   TEXT[]        — AND filter: job_tags.tech_stack must contain all items
+--   $7  company_ids  UUID[]        — OR filter on jobs.company_id
+--   $8  limit        INT
+--   $9  offset       INT
+SELECT
+    j.id,
+    j.company_id,
+    c.name AS company_name,
+    j.external_id,
+    j.title,
+    j.url,
+    j.location,
+    j.description,
+    j.raw_html,
+    j.source,
+    j.first_seen,
+    j.last_seen,
+    j.active,
+    jt.role_type,
+    jt.seniority,
+    jt.remote_policy,
+    jt.location_norm,
+    jt.country,
+    jt.tech_stack,
+    jt.enrichment_source,
+    jt.enriched_at
+FROM jobs j
+JOIN companies c ON c.id = j.company_id
+LEFT JOIN job_tags jt ON jt.job_id = j.id
+WHERE j.active = TRUE
+  AND (
+    $1 = ''
+    OR j.title ILIKE '%' || $1 || '%'
+    OR c.name  ILIKE '%' || $1 || '%'
+  )
+  AND (
+    array_length($2::text[], 1) IS NULL
+    OR jt.role_type = ANY($2::text[])
+  )
+  AND (
+    array_length($3::text[], 1) IS NULL
+    OR jt.seniority = ANY($3::text[])
+  )
+  AND (
+    array_length($4::text[], 1) IS NULL
+    OR jt.remote_policy = ANY($4::text[])
+  )
+  AND (
+    array_length($5::text[], 1) IS NULL
+    OR jt.country = ANY($5::text[])
+  )
+  AND (
+    array_length($6::text[], 1) IS NULL
+    OR $6::text[] <@ jt.tech_stack
+  )
+  AND (
+    array_length($7::uuid[], 1) IS NULL
+    OR j.company_id = ANY($7::uuid[])
+  )
+ORDER BY j.first_seen DESC
+LIMIT $8
+OFFSET $9;
+
 -- ============================================================
 -- Job Tags
 -- ============================================================

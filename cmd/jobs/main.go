@@ -61,6 +61,7 @@ func main() {
 		seeder,
 	)
 	enrichService := services.NewEnrichService(jobRepo, enricher)
+	searchService := services.NewJobSearchService(jobRepo)
 
 	// ----------------------------------------------------------------
 	// CLI — check if we're running a CLI command (any arg present)
@@ -69,6 +70,7 @@ func main() {
 		cliServices := cli.Services{
 			Scrape: scrapeService,
 			Enrich: enrichService,
+			Search: searchService,
 		}
 		rootCmd := cli.NewRootCmd(cliServices)
 		if err := rootCmd.Execute(); err != nil {
