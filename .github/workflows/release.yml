@@ -57,7 +57,7 @@ jobs:
 
           go build \
             -ldflags="-s -w -X main.version=${TAG}" \
-            -o "${OUTDIR}/jobs${EXT}" \
+            -o "${OUTDIR}/go-jobs${EXT}" \
             ./cmd/cli/
 
       - name: Build Server (if not windows)

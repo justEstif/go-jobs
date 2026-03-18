@@ -19,17 +19,23 @@ templ JobsListPage(jobs []domain.Job, filters domain.SearchFilters, loggedIn boo
 	@Layout("Jobs", loggedIn, csrfToken) {
 		<div
 			id="jobs-shell"
-			class="flex gap-6"
+			class="drawer lg:drawer-open"
 			hx-boost="true"
 			hx-target="this"
 			hx-select="#jobs-shell"
 			hx-swap="outerHTML"
 			hx-push-url="true"
 		>
-			<!-- Filter panel -->
-			@FilterPanel(filters)
+			<input id="filter-drawer" type="checkbox" class="drawer-toggle" autocomplete="off"/>
 			<!-- Main content -->
-			<div class="flex-1 min-w-0">
+			<div class="drawer-content flex flex-col min-w-0">
+				<!-- Mobile: filter toggle button -->
+				<label for="filter-drawer" class="btn btn-ghost btn-sm w-fit mb-3 lg:hidden">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"></path>
+					</svg>
+					Filters
+				</label>
 				<!-- Search bar -->
 				<form method="GET" action="/" class="mb-4 flex flex-wrap gap-2 items-center">
 					<input
@@ -97,6 +103,11 @@ templ JobsListPage(jobs []domain.Job, filters domain.SearchFilters, loggedIn boo
 					</div>
 					@PaginationControls(filters, len(jobs))
 				}
+			</div>
+			<!-- Filter sidebar -->
+			<div class="drawer-side z-40">
+				<label for="filter-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
+				@FilterPanel(filters)
 			</div>
 		</div>
 	}

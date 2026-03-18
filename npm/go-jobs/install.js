@@ -5,7 +5,7 @@ const path = require("path");
 const { execFileSync } = require("child_process");
 const os = require("os");
 
-const BINARY = "jobs";
+const BINARY = "go-jobs";
 const REPO = "justEstif/go-jobs";
 const VERSION = require("./package.json").version;
 
