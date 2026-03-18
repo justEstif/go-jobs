@@ -218,17 +218,21 @@
         </section>
 
         <section class="stagger quickstart">
-          <h2>Quick start</h2>
+          <h2>Self-hosting</h2>
+          <div class="box">
+            <pre><code>docker pull ghcr.io/justestif/go-jobs:latest</code></pre>
+            <p>Then run with Docker Compose or plain Docker. See the <a href="https://github.com/justEstif/go-jobs/blob/main/docs/self-hosting.md">self-hosting guide</a> for env vars and full setup.</p>
+          </div>
+        </section>
+
+        <section class="stagger quickstart">
+          <h2>Local development</h2>
           <div class="box">
             <pre><code>mise install
 docker-compose up -d
 mise run setup
 mise run dev</code></pre>
             <p>Then open <code>http://localhost:3000</code>.</p>
-            <p>
-              For production-friendly local deployment steps, see
-              <a href="https://github.com/justEstif/go-jobs/blob/main/docs/self-hosting.md">Self-hosting</a>.
-            </p>
           </div>
         </section>
 
@@ -237,7 +241,7 @@ mise run dev</code></pre>
           <div class="grid-two">
             <article class="box">
               <h3><a href="https://github.com/justEstif/go-jobs/blob/main/docs/self-hosting.md">Self-hosting</a></h3>
-              <p>Environment variables, startup commands, and deployment checklist.</p>
+              <p>Pull the Docker image and run with Docker Compose or plain Docker.</p>
             </article>
             <article class="box">
               <h3><a href="https://github.com/justEstif/go-jobs/blob/main/docs/MVP.md">MVP scope</a></h3>

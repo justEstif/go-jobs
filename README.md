@@ -35,6 +35,14 @@ It pulls postings from ATS platforms like Greenhouse, Lever, and Ashby, stores t
 - `docs/ARCHITECTURE.md` — system design and data model
 - `docs/interfaces.md` — domain types and ports
 
+## Self-hosting
+
+```bash
+docker pull ghcr.io/justestif/go-jobs:latest
+```
+
+Run with Docker Compose or plain Docker — see [docs/self-hosting.md](docs/self-hosting.md) for env vars and setup.
+
 ## Local development
 
 ```bash
