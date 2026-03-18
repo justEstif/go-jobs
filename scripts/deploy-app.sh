@@ -6,26 +6,36 @@ set -euo pipefail
 # Run once from your dev machine to set up the
 # app on your Dokku server.
 #
-# Required env vars (set in your shell or .env.production):
-#   DOKKU_HOST   — server IP or hostname (e.g. 1.2.3.4 or dokku.myserver.com)
-#   APP_NAME     — Dokku app name (e.g. go-jobs)
-#   DOMAIN       — public domain (e.g. jobs.yourdomain.com)
-#
 # Usage:
-#   export DOKKU_HOST=... APP_NAME=... DOMAIN=...
-#   ./scripts/deploy-app.sh
+#   ./scripts/deploy-app.sh [env-file]
 #
-# Or with an env file:
-#   env $(grep -v '^#' .env.production | xargs) ./scripts/deploy-app.sh
+# Reads DOKKU_HOST, APP_NAME, DOMAIN, and app secrets from
+# .env.production (or the path passed as the first argument).
+# Shell env vars take precedence over the file.
 # ─────────────────────────────────────────────
 
-: "${DOKKU_HOST:?DOKKU_HOST is required}"
-: "${APP_NAME:?APP_NAME is required}"
-: "${DOMAIN:?DOMAIN is required}"
-
-DB_NAME="${APP_NAME}-db"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="${1:-${SCRIPT_DIR}/../.env.production}"
+
+# Load env file early so DOKKU_HOST, APP_NAME, DOMAIN, and secrets are available.
+# Shell env vars already set take precedence (${VAR:-} pattern preserves them).
+if [ -f "$ENV_FILE" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+    key="${line%%=*}"
+    value="${line#*=}"
+    # Only set if not already set in the environment
+    if [ -z "${!key+x}" ]; then
+      export "$key"="$value"
+    fi
+  done < "$ENV_FILE"
+fi
+
+: "${DOKKU_HOST:?DOKKU_HOST is required (set in ${ENV_FILE} or shell env)}"
+: "${APP_NAME:?APP_NAME is required (set in ${ENV_FILE} or shell env)}"
+: "${DOMAIN:?DOMAIN is required (set in ${ENV_FILE} or shell env)}"
+
+DB_NAME="${APP_NAME}-db"
 
 dokku_cmd() {
   ssh "dokku@${DOKKU_HOST}" "$@"
@@ -59,10 +69,14 @@ dokku_cmd config:set --no-restart "$APP_NAME" \
   BASE_URL="https://${DOMAIN}"
 
 if [ -f "$ENV_FILE" ]; then
-  echo "▶ Loading env vars from ${ENV_FILE}"
+  echo "▶ Loading app secrets from ${ENV_FILE}"
+  # Skip vars that are for the deploy script itself or Docker Compose only
+  skip_keys="DOKKU_HOST|APP_NAME|DOMAIN|POSTGRES_PASSWORD|BASE_URL"
   env_args=()
   while IFS= read -r line || [ -n "$line" ]; do
     [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+    key="${line%%=*}"
+    [[ "$key" =~ ^($skip_keys)$ ]] && continue
     env_args+=("$line")
   done < "$ENV_FILE"
   if [ ${#env_args[@]} -gt 0 ]; then
