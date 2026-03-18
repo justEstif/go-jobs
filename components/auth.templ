@@ -13,7 +13,7 @@ templ RegisterPage(errMsg string, csrfToken string) {
 			}
 			<form method="POST" action="/register" class="space-y-4">
 				<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
-				<div class="form-control">
+				<fieldset class="fieldset">
 					<label class="label py-1">
 						<span class="label-text text-xs uppercase tracking-wide">Email</span>
 					</label>
@@ -24,8 +24,8 @@ templ RegisterPage(errMsg string, csrfToken string) {
 						class="input input-bordered input-sm"
 						required
 					/>
-				</div>
-				<div class="form-control">
+				</fieldset>
+				<fieldset class="fieldset">
 					<label class="label py-1">
 						<span class="label-text text-xs uppercase tracking-wide">Password</span>
 					</label>
@@ -36,8 +36,8 @@ templ RegisterPage(errMsg string, csrfToken string) {
 						class="input input-bordered input-sm"
 						required
 					/>
-				</div>
-				<button type="submit" class="btn btn-primary btn-sm w-full">Create account</button>
+				</fieldset>
+				<button type="submit" class="btn btn-primary btn-sm">Create account</button>
 			</form>
 			<p class="mt-4 text-sm text-center text-base-content/60">
 				Already have an account?
@@ -60,7 +60,7 @@ templ LoginPage(errMsg string, csrfToken string) {
 			}
 			<form method="POST" action="/login" class="space-y-4">
 				<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
-				<div class="form-control">
+				<fieldset class="fieldset">
 					<label class="label py-1">
 						<span class="label-text text-xs uppercase tracking-wide">Email</span>
 					</label>
@@ -71,8 +71,8 @@ templ LoginPage(errMsg string, csrfToken string) {
 						class="input input-bordered input-sm"
 						required
 					/>
-				</div>
-				<div class="form-control">
+				</fieldset>
+				<fieldset class="fieldset">
 					<label class="label py-1">
 						<span class="label-text text-xs uppercase tracking-wide">Password</span>
 					</label>
@@ -83,8 +83,8 @@ templ LoginPage(errMsg string, csrfToken string) {
 						class="input input-bordered input-sm"
 						required
 					/>
-				</div>
-				<button type="submit" class="btn btn-primary btn-sm w-full">Sign in</button>
+				</fieldset>
+				<button type="submit" class="btn btn-primary btn-sm">Sign in</button>
 			</form>
 			<p class="mt-4 text-sm text-center text-base-content/60">
 				Don't have an account?
