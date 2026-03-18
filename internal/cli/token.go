@@ -21,8 +21,15 @@ func tokenFilePath() (string, error) {
 	return filepath.Join(base, "go-jobs", "token"), nil
 }
 
-// readToken reads the stored CLI session token from disk.
+// ReadStoredToken reads the stored CLI session token from disk.
 // Returns an empty string (not an error) if no token file exists.
+// Exported so the composition root can pre-read the token before wiring
+// httpclient adapters in remote mode.
+func ReadStoredToken() (string, error) {
+	return readToken()
+}
+
+// readToken is the internal implementation used by CLI commands.
 func readToken() (string, error) {
 	path, err := tokenFilePath()
 	if err != nil {

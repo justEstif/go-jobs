@@ -19,6 +19,7 @@ import (
 	httphandlers "github.com/justestif/go-jobs/internal/adapters/http"
 	"github.com/justestif/go-jobs/internal/adapters/http/api"
 	"github.com/justestif/go-jobs/internal/adapters/http/middleware"
+	"github.com/justestif/go-jobs/internal/adapters/httpclient"
 	"github.com/justestif/go-jobs/internal/adapters/postgres"
 	"github.com/justestif/go-jobs/internal/adapters/scrapers"
 	"github.com/justestif/go-jobs/internal/cli"
@@ -28,15 +29,32 @@ import (
 )
 
 func main() {
-	// Initialize database
+	// ----------------------------------------------------------------
+	// Remote mode detection
+	//
+	// Check --base-url flag and BASE_URL env before booting any adapters.
+	// Commands that require direct DB access (serve, scrape, enrich) always
+	// run in local mode regardless of base URL.
+	// ----------------------------------------------------------------
+	baseURL := resolveBaseURL(os.Args[1:])
+	cmd := firstCommand(os.Args[1:])
+	localOnlyCmd := cmd == "serve" || cmd == "scrape" || cmd == "enrich"
+	remoteMode := baseURL != "" && !localOnlyCmd
+
+	if remoteMode {
+		runRemoteCLI(baseURL)
+		return
+	}
+
+	// ----------------------------------------------------------------
+	// Local mode: boot the full stack (DB + scrapers + enrichment)
+	// ----------------------------------------------------------------
 	if err := postgres.InitDB(); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer postgres.Close()
 
-	// ----------------------------------------------------------------
 	// Driven adapters (repos)
-	// ----------------------------------------------------------------
 	companyRepo := postgres.NewCompanyRepo(postgres.DB)
 	jobRepo := postgres.NewJobRepo(postgres.DB)
 	userRepo := postgres.NewUserRepo(postgres.DB)
@@ -44,9 +62,7 @@ func main() {
 	userCompanyRepo := postgres.NewUserCompanyRepo(postgres.DB)
 	scrapeRunRepo := postgres.NewScrapeRunRepo(postgres.DB)
 
-	// ----------------------------------------------------------------
 	// Scraper adapters
-	// ----------------------------------------------------------------
 	scraperMap := map[domain.ATSType]ports.JobScraper{
 		domain.ATSGreenhouse: scrapers.NewGreenhouseAdapter(),
 		domain.ATSLever:      scrapers.NewLeverAdapter(),
@@ -54,15 +70,11 @@ func main() {
 	}
 	seeder := scrapers.NewSimplifySeeder()
 
-	// ----------------------------------------------------------------
 	// Enrichment adapter (tiered: ATS → rules → LLM)
 	// LLM tier is disabled until the user configures an API key (M5).
-	// ----------------------------------------------------------------
 	enricher := enrichment.NewTieredEnricher(domain.LLMProvider(""), "")
 
-	// ----------------------------------------------------------------
 	// Core services
-	// ----------------------------------------------------------------
 	scrapeService := services.NewScrapeService(
 		companyRepo,
 		jobRepo,
@@ -90,28 +102,96 @@ func main() {
 		)
 	}
 
-	// ----------------------------------------------------------------
-	// CLI — check if we're running a CLI command (any arg present)
-	// ----------------------------------------------------------------
-	if len(os.Args) > 1 {
-		cliServices := cli.Services{
-			Scrape:      scrapeService,
-			Enrich:      enrichService,
-			Search:      searchService,
-			Application: applicationService,
-			Session:     userRepo,
-			Auth:        authService,
-			Serve:       serve,
-		}
-		rootCmd := cli.NewRootCmd(cliServices)
-		if err := rootCmd.Execute(); err != nil {
-			os.Exit(1)
+	// No CLI args → start the web server directly.
+	if len(os.Args) == 1 {
+		if err := serve(context.Background()); err != nil {
+			log.Fatalf("Server failed: %v", err)
 		}
 		return
 	}
-	if err := serve(context.Background()); err != nil {
-		log.Fatalf("Server failed: %v", err)
+
+	cliServices := cli.Services{
+		Scrape:      scrapeService,
+		Enrich:      enrichService,
+		Search:      searchService,
+		Application: applicationService,
+		Session:     userRepo,
+		Auth:        authService,
+		Serve:       serve,
 	}
+	rootCmd := cli.NewRootCmd(cliServices)
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
+}
+
+// runRemoteCLI wires httpclient adapters targeting baseURL and executes the
+// cobra command tree. The DB is never initialised in this path.
+func runRemoteCLI(baseURL string) {
+	// Read the stored token for authenticated commands. An empty token is fine
+	// for public commands (register, login, search).
+	token, err := cli.ReadStoredToken()
+	if err != nil {
+		log.Fatalf("Failed to read stored token: %v", err)
+	}
+
+	c := httpclient.NewClient(baseURL, token)
+	authClient := httpclient.NewAuthClient(c)
+
+	cliServices := cli.Services{
+		Auth:        authClient,
+		Session:     authClient,
+		Search:      httpclient.NewSearchClient(c),
+		Application: httpclient.NewApplicationClient(c),
+		// Scrape, Enrich, Serve are not available in remote mode.
+	}
+
+	rootCmd := cli.NewRootCmd(cliServices)
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
+}
+
+// resolveBaseURL returns the effective base URL from args or environment.
+//
+// Precedence:
+//  1. --base-url=<value> or --base-url <value> in args
+//  2. BASE_URL environment variable
+//  3. Empty string (local/in-process mode)
+func resolveBaseURL(args []string) string {
+	for i, arg := range args {
+		if len(arg) > 11 && arg[:11] == "--base-url=" {
+			return arg[11:]
+		}
+		if arg == "--base-url" && i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	return os.Getenv("BASE_URL")
+}
+
+// firstCommand returns the first non-flag argument in args, which cobra treats
+// as the subcommand name. Returns an empty string if none is found.
+// It skips the value argument that follows --base-url so it is not mistaken
+// for a subcommand name.
+func firstCommand(args []string) string {
+	skipNext := false
+	for _, arg := range args {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		if arg == "--base-url" {
+			skipNext = true
+			continue
+		}
+		// Skip --base-url=value form and any other --flag=value or --flag forms.
+		if len(arg) > 0 && arg[0] == '-' {
+			continue
+		}
+		return arg
+	}
+	return ""
 }
 
 func runHTTPServer(
