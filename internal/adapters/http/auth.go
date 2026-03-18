@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/gorilla/csrf"
+
 	"github.com/justestif/go-jobs/components"
 	"github.com/justestif/go-jobs/internal/adapters/http/middleware"
 	"github.com/justestif/go-jobs/internal/core/ports"
@@ -23,7 +25,8 @@ func NewAuthHandler(auth ports.AuthService, sm *middleware.SessionManager) *Auth
 
 // ShowRegister renders the registration form.
 func (h *AuthHandler) ShowRegister(w http.ResponseWriter, r *http.Request) {
-	components.RegisterPage("").Render(r.Context(), w)
+	csrfToken := csrf.Token(r)
+	components.RegisterPage("", csrfToken).Render(r.Context(), w)
 }
 
 // Register handles POST /register. On success it logs the user in and
@@ -39,7 +42,8 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.auth.Register(r.Context(), email, password)
 	if err != nil {
-		components.RegisterPage(err.Error()).Render(r.Context(), w)
+		csrfTokenErr := csrf.Token(r)
+		components.RegisterPage(err.Error(), csrfTokenErr).Render(r.Context(), w)
 		return
 	}
 
@@ -53,7 +57,8 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 // ShowLogin renders the login form.
 func (h *AuthHandler) ShowLogin(w http.ResponseWriter, r *http.Request) {
-	components.LoginPage("").Render(r.Context(), w)
+	csrfToken := csrf.Token(r)
+	components.LoginPage("", csrfToken).Render(r.Context(), w)
 }
 
 // Login handles POST /login. Verifies credentials via AuthService.Login
@@ -74,7 +79,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		if !errors.Is(err, services.ErrInvalidCredentials) {
 			msg = "An error occurred. Please try again."
 		}
-		components.LoginPage(msg).Render(r.Context(), w)
+		csrfTokenErr := csrf.Token(r)
+		components.LoginPage(msg, csrfTokenErr).Render(r.Context(), w)
 		return
 	}
 

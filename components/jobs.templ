@@ -1,0 +1,423 @@
+package components
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/justestif/go-jobs/internal/core/domain"
+)
+
+// JobsListPage renders the main jobs browse page with search bar, filter panel,
+// and job card list.
+templ JobsListPage(jobs []domain.Job, filters domain.SearchFilters, loggedIn bool, csrfToken string) {
+	@Layout("Jobs", loggedIn, csrfToken) {
+		<div class="flex gap-6">
+			<!-- Filter panel -->
+			@FilterPanel(filters)
+			<!-- Main content -->
+			<div class="flex-1 min-w-0">
+				<!-- Search bar -->
+				<form method="GET" action="/" class="mb-4 flex gap-2">
+					<input
+						type="text"
+						name="q"
+						value={ filters.Query }
+						placeholder="Search jobs, companies..."
+						class="input input-bordered input-sm flex-1"
+						autocomplete="off"
+					/>
+					<button type="submit" class="btn btn-primary btn-sm">Search</button>
+					if filters.Query != "" || hasFilters(filters) {
+						<a href="/" class="btn btn-ghost btn-sm">Clear</a>
+					}
+				</form>
+				<!-- Scraper status -->
+				<div class="mb-4">
+					@ScraperStatusPlaceholder()
+				</div>
+				<!-- Results count + new-only toggle -->
+				<div class="flex items-center justify-between mb-3">
+					<span class="text-xs text-base-content/50">
+						{ fmt.Sprintf("%d listing", len(jobs)) }
+						if len(jobs) != 1 {
+							s
+						}
+					</span>
+					if loggedIn {
+						<a
+							href={ templ.SafeURL(newOnlyHref(filters)) }
+							class="text-xs link link-primary"
+						>
+							if filters.Query == "new" {
+								Show all
+							} else {
+								New since last visit
+							}
+						</a>
+					}
+				</div>
+				<!-- Job cards -->
+				if len(jobs) == 0 {
+					<div class="text-center py-16 text-base-content/40 text-sm">
+						No jobs match your filters.
+					</div>
+				} else {
+					<div class="space-y-2">
+						for _, job := range jobs {
+							@JobCard(job, loggedIn, csrfToken)
+						}
+					</div>
+				}
+			</div>
+		</div>
+	}
+}
+
+// FilterPanel renders the multi-select filter sidebar.
+templ FilterPanel(filters domain.SearchFilters) {
+	<aside class="w-52 shrink-0">
+		<form method="GET" action="/" id="filter-form">
+			if filters.Query != "" {
+				<input type="hidden" name="q" value={ filters.Query }/>
+			}
+			<div class="space-y-5">
+				<!-- Role type -->
+				@filterSection("Role", "role", roleTypeOptions(), selectedStrings(roleTypeStrings(filters.RoleTypes)))
+				<!-- Seniority -->
+				@filterSection("Level", "seniority", seniorityOptions(), selectedStrings(seniorityStrings(filters.Seniorities)))
+				<!-- Remote policy -->
+				@filterSection("Workplace", "remote", remoteOptions(), selectedStrings(remotePolicyStrings(filters.RemotePolicy)))
+				<!-- Country -->
+				@filterSection("Country", "country", countryOptions(), selectedStrings(filters.Countries))
+			</div>
+			<button type="submit" class="btn btn-primary btn-xs w-full mt-5">Apply</button>
+			<a href="/" class="btn btn-ghost btn-xs w-full mt-1">Reset</a>
+		</form>
+	</aside>
+}
+
+// filterSection renders a labeled checkbox group.
+templ filterSection(label, param string, options [][2]string, selected map[string]bool) {
+	<div>
+		<p class="text-xs font-medium uppercase tracking-wide text-base-content/50 mb-1.5">{ label }</p>
+		<div class="space-y-1">
+			for _, opt := range options {
+				<label class="flex items-center gap-2 cursor-pointer">
+					<input
+						type="checkbox"
+						name={ param }
+						value={ opt[0] }
+						class="checkbox checkbox-xs checkbox-primary"
+						if selected[opt[0]] {
+							checked
+						}
+					/>
+					<span class="text-sm">{ opt[1] }</span>
+				</label>
+			}
+		</div>
+	</div>
+}
+
+// JobCard renders a single job listing card.
+templ JobCard(job domain.Job, loggedIn bool, csrfToken string) {
+	<article class="bg-base-100 border border-base-200 rounded-sm px-4 py-3 hover:border-primary/30 transition-colors">
+		<div class="flex items-start justify-between gap-4">
+			<div class="min-w-0">
+				<a href={ templ.SafeURL("/jobs/" + job.ID.String()) } class="font-medium text-sm text-base-content hover:text-primary transition-colors line-clamp-1">
+					{ job.Title }
+				</a>
+				<div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
+					<span class="text-sm text-base-content/60">{ job.CompanyName }</span>
+					if job.Location != "" {
+						<span class="text-xs text-base-content/40">{ job.Location }</span>
+					}
+					<span class="text-xs text-base-content/35">{ daysAgo(job.FirstSeen) }</span>
+				</div>
+				<!-- Tags -->
+				if job.Tags != nil {
+					<div class="flex flex-wrap gap-1 mt-1.5">
+						if job.Tags.RoleType != "" && job.Tags.RoleType != domain.RoleOther {
+							<span class="badge badge-sm badge-ghost">{ string(job.Tags.RoleType) }</span>
+						}
+						if job.Tags.Seniority != "" {
+							<span class="badge badge-sm badge-ghost">{ string(job.Tags.Seniority) }</span>
+						}
+						if job.Tags.RemotePolicy != "" {
+							<span class="badge badge-sm badge-ghost">{ string(job.Tags.RemotePolicy) }</span>
+						}
+						for i, tech := range job.Tags.TechStack {
+							if i < 4 {
+								<span class="badge badge-sm badge-outline">{ tech }</span>
+							}
+						}
+					</div>
+				}
+			</div>
+			<div class="shrink-0 flex flex-col items-end gap-1.5">
+				<a href={ templ.SafeURL(job.URL) } target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-outline">Apply</a>
+			</div>
+		</div>
+	</article>
+}
+
+// JobDetailPage renders the full job detail view.
+templ JobDetailPage(job domain.Job, userJob *domain.UserJob, loggedIn bool, csrfToken string) {
+	@Layout(job.Title, loggedIn, csrfToken) {
+		<div class="max-w-3xl">
+			<!-- Breadcrumb -->
+			<div class="text-xs text-base-content/40 mb-4">
+				<a href="/" class="hover:text-primary">Jobs</a>
+				<span class="mx-2">/</span>
+				<span>{ job.Title }</span>
+			</div>
+			<!-- Header -->
+			<div class="mb-5">
+				<h1 class="text-xl font-semibold text-base-content">{ job.Title }</h1>
+				<div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-base-content/60">
+					<span class="font-medium text-base-content/80">{ job.CompanyName }</span>
+					if job.Location != "" {
+						<span>{ job.Location }</span>
+					}
+					<span class="text-xs text-base-content/40">{ daysAgo(job.FirstSeen) }</span>
+				</div>
+				<!-- Tags -->
+				if job.Tags != nil {
+					<div class="flex flex-wrap gap-1.5 mt-2">
+						if job.Tags.RoleType != "" && job.Tags.RoleType != domain.RoleOther {
+							<span class="badge badge-sm">{ string(job.Tags.RoleType) }</span>
+						}
+						if job.Tags.Seniority != "" {
+							<span class="badge badge-sm">{ string(job.Tags.Seniority) }</span>
+						}
+						if job.Tags.RemotePolicy != "" {
+							<span class="badge badge-sm">{ string(job.Tags.RemotePolicy) }</span>
+						}
+						if job.Tags.Country != "" {
+							<span class="badge badge-sm badge-ghost">{ job.Tags.Country }</span>
+						}
+						for _, tech := range job.Tags.TechStack {
+							<span class="badge badge-sm badge-outline">{ tech }</span>
+						}
+					</div>
+				}
+			</div>
+			<!-- Action bar -->
+			<div id="action-bar" class="mb-6">
+				@ActionBarPartial(job.ID, userJob, csrfToken)
+			</div>
+			<!-- Notes -->
+			if loggedIn {
+				<div id="notes-area" class="mb-6">
+					@NotesPartial(job.ID, notesFromUserJob(userJob), csrfToken)
+				</div>
+			}
+			<!-- Description -->
+			<div class="bg-base-100 border border-base-200 rounded-sm px-5 py-4">
+				<h2 class="text-sm font-medium uppercase tracking-wide text-base-content/50 mb-3">Description</h2>
+				<div class="prose prose-sm max-w-none text-base-content/80 whitespace-pre-wrap">
+					{ job.Description }
+				</div>
+			</div>
+			<!-- External link -->
+			<div class="mt-4">
+				<a href={ templ.SafeURL(job.URL) } target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">
+					Apply on { string(job.Source) }
+				</a>
+			</div>
+		</div>
+	}
+}
+
+// ActionBarPartial renders the tracker action buttons (htmx swap target).
+templ ActionBarPartial(jobID uuid.UUID, userJob *domain.UserJob, csrfToken string) {
+	<div class="flex flex-wrap gap-2 items-center">
+		if userJob == nil {
+			<!-- Not tracked -->
+			<form hx-post={ "/jobs/" + jobID.String() + "/interested" } hx-target="#action-bar" hx-swap="innerHTML">
+				<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+				<button type="submit" class="btn btn-sm btn-outline">Mark interested</button>
+			</form>
+			<form hx-post={ "/jobs/" + jobID.String() + "/apply" } hx-target="#action-bar" hx-swap="innerHTML">
+				<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+				<button type="submit" class="btn btn-sm btn-primary">Applied</button>
+			</form>
+		} else {
+			<!-- Status badge -->
+			<span class={ "badge badge-sm " + statusBadgeClass(userJob.Status) }>
+				{ string(userJob.Status) }
+			</span>
+			<!-- Status selector -->
+			<form hx-post={ "/jobs/" + jobID.String() + "/status" } hx-target="#action-bar" hx-swap="innerHTML" hx-trigger="change">
+				<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+				<select name="status" class="select select-bordered select-xs">
+					for _, s := range allStatuses() {
+						<option value={ string(s) } selected?={ userJob.Status == s }>{ string(s) }</option>
+					}
+				</select>
+			</form>
+		}
+	</div>
+}
+
+// NotesPartial renders the notes textarea (htmx swap target).
+templ NotesPartial(jobID uuid.UUID, notes string, csrfToken string) {
+	<div>
+		<p class="text-xs font-medium uppercase tracking-wide text-base-content/50 mb-1.5">Notes</p>
+		<form hx-post={ "/jobs/" + jobID.String() + "/notes" } hx-target="#notes-area" hx-swap="innerHTML" hx-trigger="input delay:600ms">
+			<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+			<textarea
+				name="notes"
+				class="textarea textarea-bordered textarea-sm w-full h-20"
+				placeholder="Private notes on this role..."
+			>{ notes }</textarea>
+		</form>
+	</div>
+}
+
+// ScraperStatusPlaceholder renders a placeholder for the scraper status widget.
+// The actual status is loaded via a separate endpoint in a full implementation.
+templ ScraperStatusPlaceholder() {
+	<span class="text-xs text-base-content/30">Job data refreshed periodically.</span>
+}
+
+// --- Helpers (unexported, Go functions not templ components) ---
+
+func daysAgo(t time.Time) string {
+	days := int(time.Since(t).Hours() / 24)
+	switch {
+	case days == 0:
+		return "today"
+	case days == 1:
+		return "1 day ago"
+	default:
+		return fmt.Sprintf("%d days ago", days)
+	}
+}
+
+func hasFilters(f domain.SearchFilters) bool {
+	return len(f.RoleTypes) > 0 || len(f.Seniorities) > 0 || len(f.RemotePolicy) > 0 ||
+		len(f.Countries) > 0 || len(f.TechStack) > 0
+}
+
+func newOnlyHref(f domain.SearchFilters) string {
+	_ = f
+	return "/?new=1"
+}
+
+func selectedStrings(vals []string) map[string]bool {
+	m := make(map[string]bool, len(vals))
+	for _, v := range vals {
+		m[v] = true
+	}
+	return m
+}
+
+func roleTypeStrings(roles []domain.RoleType) []string {
+	out := make([]string, len(roles))
+	for i, r := range roles {
+		out[i] = string(r)
+	}
+	return out
+}
+
+func seniorityStrings(ss []domain.Seniority) []string {
+	out := make([]string, len(ss))
+	for i, s := range ss {
+		out[i] = string(s)
+	}
+	return out
+}
+
+func remotePolicyStrings(rp []domain.WorkplaceType) []string {
+	out := make([]string, len(rp))
+	for i, r := range rp {
+		out[i] = string(r)
+	}
+	return out
+}
+
+func roleTypeOptions() [][2]string {
+	return [][2]string{
+		{"engineering", "Engineering"},
+		{"design", "Design"},
+		{"product", "Product"},
+		{"data", "Data"},
+		{"marketing", "Marketing"},
+		{"sales", "Sales"},
+		{"operations", "Operations"},
+		{"finance", "Finance"},
+		{"other", "Other"},
+	}
+}
+
+func seniorityOptions() [][2]string {
+	return [][2]string{
+		{"intern", "Intern"},
+		{"junior", "Junior"},
+		{"mid", "Mid"},
+		{"senior", "Senior"},
+		{"staff", "Staff"},
+		{"lead", "Lead"},
+	}
+}
+
+func remoteOptions() [][2]string {
+	return [][2]string{
+		{"remote", "Remote"},
+		{"hybrid", "Hybrid"},
+		{"onsite", "On-site"},
+	}
+}
+
+func countryOptions() [][2]string {
+	return [][2]string{
+		{"US", "United States"},
+		{"GB", "United Kingdom"},
+		{"CA", "Canada"},
+		{"DE", "Germany"},
+		{"FR", "France"},
+		{"AU", "Australia"},
+		{"IN", "India"},
+		{"BR", "Brazil"},
+		{"NL", "Netherlands"},
+		{"SG", "Singapore"},
+	}
+}
+
+func allStatuses() []domain.ApplicationStatus {
+	return []domain.ApplicationStatus{
+		domain.StatusInterested,
+		domain.StatusApplied,
+		domain.StatusInterviewing,
+		domain.StatusOffer,
+		domain.StatusRejected,
+		domain.StatusWithdrawn,
+	}
+}
+
+func statusBadgeClass(s domain.ApplicationStatus) string {
+	switch s {
+	case domain.StatusOffer:
+		return "badge-success"
+	case domain.StatusRejected, domain.StatusWithdrawn:
+		return "badge-error"
+	case domain.StatusInterviewing:
+		return "badge-warning"
+	case domain.StatusApplied:
+		return "badge-info"
+	default:
+		return "badge-ghost"
+	}
+}
+
+func notesFromUserJob(uj *domain.UserJob) string {
+	if uj == nil {
+		return ""
+	}
+	return uj.Notes
+}
+
+

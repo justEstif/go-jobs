@@ -70,7 +70,11 @@ type CompanyService interface {
 	HideCompany(ctx context.Context, userID domain.UserID, companyID domain.CompanyID) error
 	ShowCompany(ctx context.Context, userID domain.UserID, companyID domain.CompanyID) error
 	// ListCompanies returns all active companies excluding those hidden by the user.
+	// Used for job browse filtering.
 	ListCompanies(ctx context.Context, userID domain.UserID) ([]domain.Company, error)
+	// ListAllWithHiddenIDs returns all active companies and a set of company IDs
+	// the user has hidden. Used to render the /companies management page.
+	ListAllWithHiddenIDs(ctx context.Context, userID domain.UserID) (companies []domain.Company, hiddenIDs map[domain.CompanyID]bool, err error)
 }
 
 // EnrichService runs the enrichment pipeline over un-tagged jobs.

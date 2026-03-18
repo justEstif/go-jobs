@@ -1,0 +1,58 @@
+package components
+
+import (
+	"fmt"
+
+	"github.com/google/uuid"
+
+	"github.com/justestif/go-jobs/internal/core/domain"
+)
+
+// CompaniesPage renders the companies management page with hide/show toggles.
+// csrfToken is used for both the navbar logout form and the hide/show toggle forms.
+templ CompaniesPage(companies []domain.Company, hidden map[domain.CompanyID]bool, csrfToken string) {
+	@Layout("Companies", true, csrfToken) {
+		<div class="max-w-3xl">
+			<div class="flex items-center justify-between mb-5">
+				<h1 class="text-xl font-semibold">Companies</h1>
+				<span class="text-xs text-base-content/40">{ fmt.Sprintf("%d companies", len(companies)) }</span>
+			</div>
+			<p class="text-sm text-base-content/60 mb-4">Hidden companies are excluded from job listings.</p>
+			if len(companies) == 0 {
+				<div class="text-center py-16 text-base-content/40 text-sm">
+					No companies yet. Run the scraper to seed companies.
+				</div>
+			} else {
+				<div class="divide-y divide-base-200 border border-base-200 rounded-sm">
+					for _, c := range companies {
+						<div class="flex items-center justify-between px-4 py-2.5 bg-base-100">
+							<div class="min-w-0">
+								<p class="text-sm font-medium text-base-content">{ c.Name }</p>
+								<p class="text-xs text-base-content/40 mt-0.5">{ string(c.ATSType) }</p>
+							</div>
+							<div id={ "toggle-" + c.ID.String() }>
+								@CompanyTogglePartial(c.ID, hidden[c.ID], csrfToken)
+							</div>
+						</div>
+					}
+				</div>
+			}
+		</div>
+	}
+}
+
+// CompanyTogglePartial renders a hide/show toggle button for a company.
+// It is also returned as an htmx partial swap response.
+templ CompanyTogglePartial(companyID uuid.UUID, isHidden bool, csrfToken string) {
+	if isHidden {
+		<form hx-post={ "/companies/" + companyID.String() + "/show" } hx-target={ "#toggle-" + companyID.String() } hx-swap="innerHTML">
+			<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+			<button type="submit" class="btn btn-xs btn-ghost text-base-content/50">Show</button>
+		</form>
+	} else {
+		<form hx-post={ "/companies/" + companyID.String() + "/hide" } hx-target={ "#toggle-" + companyID.String() } hx-swap="innerHTML">
+			<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+			<button type="submit" class="btn btn-xs btn-ghost">Hide</button>
+		</form>
+	}
+}

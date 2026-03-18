@@ -43,6 +43,9 @@ type UserRepository interface {
 	GetByEmail(ctx context.Context, email string) (domain.User, error)
 	GetByID(ctx context.Context, id domain.UserID) (domain.User, error)
 	Update(ctx context.Context, user domain.User) error
+	// TouchLastVisited updates LastVisitedAt to now for the given user.
+	// Called on each authenticated web session.
+	TouchLastVisited(ctx context.Context, userID domain.UserID) error
 }
 
 // SessionRepository manages opaque session tokens used for authentication.

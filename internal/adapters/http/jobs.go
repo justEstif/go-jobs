@@ -1,0 +1,123 @@
+package httphandlers
+
+import (
+	"log"
+	"net/http"
+	"strings"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/gorilla/csrf"
+
+	"github.com/justestif/go-jobs/components"
+	"github.com/justestif/go-jobs/internal/adapters/http/middleware"
+	"github.com/justestif/go-jobs/internal/core/domain"
+	"github.com/justestif/go-jobs/internal/core/ports"
+)
+
+// JobSearchHandler handles the jobs browse and search pages.
+type JobSearchHandler struct {
+	search      ports.JobSearchService
+	application ports.ApplicationService
+	user        ports.UserService
+}
+
+// NewJobSearchHandler constructs a JobSearchHandler.
+func NewJobSearchHandler(search ports.JobSearchService, application ports.ApplicationService, user ports.UserService) *JobSearchHandler {
+	return &JobSearchHandler{
+		search:      search,
+		application: application,
+		user:        user,
+	}
+}
+
+// List handles GET /. Renders the jobs list with search bar and filter panel.
+func (h *JobSearchHandler) List(w http.ResponseWriter, r *http.Request) {
+	filters := parseSearchFilters(r)
+
+	var userCtx *domain.UserSearchContext
+	userID, loggedIn := middleware.UserIDFromContext(r.Context())
+	if loggedIn {
+		// Touch last visited asynchronously — best-effort, don't block the request.
+		go func(uid [16]byte) {
+			if err := h.user.TouchLastVisited(r.Context(), uid); err != nil {
+				log.Printf("touch last visited: %v", err)
+			}
+		}(userID)
+
+		onlyNew := r.URL.Query().Get("new") == "1"
+		userCtx = &domain.UserSearchContext{
+			UserID:  userID,
+			OnlyNew: onlyNew,
+		}
+	}
+
+	jobs, err := h.search.Search(r.Context(), filters, userCtx)
+	if err != nil {
+		log.Printf("search jobs: %v", err)
+		http.Error(w, "Failed to load jobs", http.StatusInternalServerError)
+		return
+	}
+
+	csrfToken := csrf.Token(r)
+	components.JobsListPage(jobs, filters, loggedIn, csrfToken).Render(r.Context(), w)
+}
+
+// Detail handles GET /jobs/{id}. Renders the job detail page.
+func (h *JobSearchHandler) Detail(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "Invalid job ID", http.StatusBadRequest)
+		return
+	}
+
+	job, err := h.search.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Job not found", http.StatusNotFound)
+		return
+	}
+
+	var userJob *domain.UserJob
+	userID, loggedIn := middleware.UserIDFromContext(r.Context())
+	if loggedIn {
+		uj, err := h.application.GetUserJob(r.Context(), userID, job.ID)
+		if err == nil {
+			userJob = &uj
+		}
+	}
+
+	csrfToken := csrf.Token(r)
+	components.JobDetailPage(job, userJob, loggedIn, csrfToken).Render(r.Context(), w)
+}
+
+// parseSearchFilters extracts domain.SearchFilters from URL query params.
+// All slice fields use repeated params: ?role=engineering&role=data
+func parseSearchFilters(r *http.Request) domain.SearchFilters {
+	q := r.URL.Query()
+
+	f := domain.SearchFilters{
+		Query: q.Get("q"),
+		Limit: 50,
+	}
+
+	for _, v := range q["role"] {
+		f.RoleTypes = append(f.RoleTypes, domain.RoleType(v))
+	}
+	for _, v := range q["seniority"] {
+		f.Seniorities = append(f.Seniorities, domain.Seniority(v))
+	}
+	for _, v := range q["remote"] {
+		f.RemotePolicy = append(f.RemotePolicy, domain.WorkplaceType(v))
+	}
+	for _, v := range q["country"] {
+		f.Countries = append(f.Countries, v)
+	}
+	for _, v := range q["tech"] {
+		if t := strings.TrimSpace(v); t != "" {
+			f.TechStack = append(f.TechStack, t)
+		}
+	}
+
+	return f
+}

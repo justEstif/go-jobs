@@ -20,17 +20,24 @@ package components
 // 3. OAuth connect buttons (e.g. "Connect Spotify") must be hx-post triggers,
 //    not plain <a href>, since the initiation route is a POST handler.
 //    Using <a href> will return 405 Method Not Allowed.
-templ Navbar() {
-	<div class="navbar bg-base-100 shadow-sm">
-		<div class="navbar-start">
-			<a href="/" class="btn btn-ghost text-xl">MyApp</a>
+templ Navbar(loggedIn bool, csrfToken string) {
+	<header class="border-b border-base-200 bg-base-100">
+		<div class="container mx-auto px-4 flex items-center justify-between h-12">
+			<a href="/" class="text-sm font-semibold tracking-tight text-base-content">go-jobs</a>
+			<nav class="flex items-center gap-1">
+				if loggedIn {
+					<a href="/" class="btn btn-ghost btn-xs">Jobs</a>
+					<a href="/pipeline" class="btn btn-ghost btn-xs">Pipeline</a>
+					<a href="/companies" class="btn btn-ghost btn-xs">Companies</a>
+					<form method="post" action="/logout" class="inline">
+						<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+						<button type="submit" class="btn btn-ghost btn-xs">Sign out</button>
+					</form>
+				} else {
+					<a href="/login" class="btn btn-ghost btn-xs">Sign in</a>
+					<a href="/register" class="btn btn-primary btn-xs">Register</a>
+				}
+			</nav>
 		</div>
-		<div class="navbar-end">
-			<ul class="menu menu-horizontal px-1">
-				<li><a href="/">Home</a></li>
-				<li><a href="/about">About</a></li>
-				<li><a href="/contact">Contact</a></li>
-			</ul>
-		</div>
-	</div>
+	</header>
 }

@@ -33,6 +33,7 @@ func main() {
 	jobRepo := postgres.NewJobRepo(postgres.DB)
 	userRepo := postgres.NewUserRepo(postgres.DB)
 	userJobRepo := postgres.NewUserJobRepo(postgres.DB)
+	userCompanyRepo := postgres.NewUserCompanyRepo(postgres.DB)
 	scrapeRunRepo := postgres.NewScrapeRunRepo(postgres.DB)
 
 	// ----------------------------------------------------------------
@@ -66,6 +67,8 @@ func main() {
 	searchService := services.NewJobSearchService(jobRepo)
 	applicationService := services.NewApplicationService(userJobRepo, jobRepo)
 	authService := services.NewAuthService(userRepo, userRepo)
+	userService := services.NewUserService(userRepo)
+	companyService := services.NewCompanyService(companyRepo, userCompanyRepo)
 
 	// ----------------------------------------------------------------
 	// CLI — check if we're running a CLI command (any arg present)
@@ -119,12 +122,17 @@ func main() {
 	// Static files (no CSRF needed)
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
+	// HTTP handler structs
 	authH := httphandlers.NewAuthHandler(authService, sm)
+	jobsH := httphandlers.NewJobSearchHandler(searchService, applicationService, userService)
+	trackerH := httphandlers.NewTrackerHandler(applicationService, searchService)
+	pipelineH := httphandlers.NewPipelineHandler(applicationService)
+	companyH := httphandlers.NewCompanyHandler(companyService)
 
 	// Public routes with CSRF
 	r.Group(func(r chi.Router) {
 		r.Use(csrfMw)
-		r.Get("/", httphandlers.Home)
+		r.Get("/", jobsH.List)
 		r.Get("/about", httphandlers.About)
 		r.Get("/contact", httphandlers.ContactForm)
 		r.Post("/contact", httphandlers.ContactSubmit)
@@ -133,6 +141,25 @@ func main() {
 		r.Get("/login", authH.ShowLogin)
 		r.Post("/login", authH.Login)
 		r.Post("/logout", authH.Logout)
+		// Job detail — public (tracker actions within are auth-gated per handler)
+		r.Get("/jobs/{id}", jobsH.Detail)
+	})
+
+	// Authenticated routes with CSRF
+	r.Group(func(r chi.Router) {
+		r.Use(csrfMw)
+		r.Use(middleware.RequireAuth(sm))
+		// Tracker actions (htmx endpoints)
+		r.Post("/jobs/{id}/interested", trackerH.Interested)
+		r.Post("/jobs/{id}/apply", trackerH.Apply)
+		r.Post("/jobs/{id}/status", trackerH.SetStatus)
+		r.Post("/jobs/{id}/notes", trackerH.SetNotes)
+		// Pipeline
+		r.Get("/pipeline", pipelineH.List)
+		// Companies
+		r.Get("/companies", companyH.List)
+		r.Post("/companies/{id}/hide", companyH.Hide)
+		r.Post("/companies/{id}/show", companyH.Show)
 	})
 
 	port := os.Getenv("PORT")

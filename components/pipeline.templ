@@ -1,0 +1,83 @@
+package components
+
+import (
+	"fmt"
+
+	"github.com/justestif/go-jobs/internal/core/domain"
+)
+
+// PipelinePage renders tracked jobs grouped by application status.
+templ PipelinePage(pipeline map[domain.ApplicationStatus][]domain.Job, csrfToken string) {
+	@Layout("Pipeline", true, csrfToken) {
+		<div class="max-w-4xl">
+			<h1 class="text-xl font-semibold mb-5">Pipeline</h1>
+			if len(pipeline) == 0 {
+				<div class="text-center py-16 text-base-content/40 text-sm">
+					<p>No tracked jobs yet.</p>
+					<p class="mt-1">
+						<a href="/" class="link link-primary">Browse jobs</a> and mark ones you're interested in.
+					</p>
+				</div>
+			} else {
+				<div class="space-y-6">
+					for _, status := range pipelineStatusOrder() {
+						if jobs, ok := pipeline[status]; ok && len(jobs) > 0 {
+							@pipelineGroup(status, jobs)
+						}
+					}
+				</div>
+			}
+		</div>
+	}
+}
+
+// pipelineGroup renders one status column/group.
+templ pipelineGroup(status domain.ApplicationStatus, jobs []domain.Job) {
+	<section>
+		<div class="flex items-center gap-2 mb-2">
+			<span class={ "badge badge-sm " + statusBadgeClass(status) }>{ string(status) }</span>
+			<span class="text-xs text-base-content/40">{ pipelineCount(len(jobs)) }</span>
+		</div>
+		<div class="space-y-1.5">
+			for _, job := range jobs {
+				@pipelineJobRow(job)
+			}
+		</div>
+	</section>
+}
+
+// pipelineJobRow renders a compact job row in the pipeline view.
+templ pipelineJobRow(job domain.Job) {
+	<a href={ templ.SafeURL("/jobs/" + job.ID.String()) } class="block bg-base-100 border border-base-200 rounded-sm px-4 py-2.5 hover:border-primary/30 transition-colors">
+		<div class="flex items-center justify-between gap-4">
+			<div class="min-w-0">
+				<p class="text-sm font-medium text-base-content line-clamp-1">{ job.Title }</p>
+				<div class="flex items-center gap-3 mt-0.5">
+					<span class="text-xs text-base-content/60">{ job.CompanyName }</span>
+					if job.Location != "" {
+						<span class="text-xs text-base-content/40">{ job.Location }</span>
+					}
+				</div>
+			</div>
+			<span class="text-xs text-base-content/35 shrink-0">{ daysAgo(job.FirstSeen) }</span>
+		</div>
+	</a>
+}
+
+func pipelineStatusOrder() []domain.ApplicationStatus {
+	return []domain.ApplicationStatus{
+		domain.StatusInterested,
+		domain.StatusApplied,
+		domain.StatusInterviewing,
+		domain.StatusOffer,
+		domain.StatusRejected,
+		domain.StatusWithdrawn,
+	}
+}
+
+func pipelineCount(n int) string {
+	if n == 1 {
+		return "1 job"
+	}
+	return fmt.Sprintf("%d jobs", n)
+}
