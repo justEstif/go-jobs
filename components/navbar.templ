@@ -1,0 +1,36 @@
+package components
+
+// Navbar renders the top navigation bar.
+//
+// When adding auth state, follow these patterns to avoid common bugs:
+//
+// 1. Logout must be a form POST (not <a href>) to carry the CSRF token.
+//    Using <a href="/logout"> will return 403 Forbidden.
+//
+//	<form method="post" action="/logout">
+//	    <input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+//	    <button type="submit">Sign out</button>
+//	</form>
+//
+// 2. OAuth login links must use hx-boost="false" so HTMX does not intercept
+//    the redirect. Without it, the OAuth provider redirect causes a CORS error.
+//
+//	<a href="/auth/google/login" hx-boost="false">Continue with Google</a>
+//
+// 3. OAuth connect buttons (e.g. "Connect Spotify") must be hx-post triggers,
+//    not plain <a href>, since the initiation route is a POST handler.
+//    Using <a href> will return 405 Method Not Allowed.
+templ Navbar() {
+	<div class="navbar bg-base-100 shadow-sm">
+		<div class="navbar-start">
+			<a href="/" class="btn btn-ghost text-xl">MyApp</a>
+		</div>
+		<div class="navbar-end">
+			<ul class="menu menu-horizontal px-1">
+				<li><a href="/">Home</a></li>
+				<li><a href="/about">About</a></li>
+				<li><a href="/contact">Contact</a></li>
+			</ul>
+		</div>
+	</div>
+}

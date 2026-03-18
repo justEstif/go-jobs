@@ -1,0 +1,49 @@
+[tools]
+go = "latest"
+"go:github.com/a-h/templ/cmd/templ" = "latest"
+"go:github.com/sqlc-dev/sqlc/cmd/sqlc" = "latest"
+"go:github.com/golang-migrate/migrate/v4/cmd/migrate" = { version = "latest", tags = "postgres" }
+"go:github.com/air-verse/air" = "latest"
+
+[env]
+DATABASE_URL = "postgres://postgres:postgres@localhost:5432/go-jobs?sslmode=disable"
+PORT = "3000"
+BASE_URL = "http://127.0.0.1:3000"
+# Use 127.0.0.1 (not localhost) for OAuth redirect URIs — some providers (e.g. Spotify) reject localhost
+# Regenerate with: openssl rand -hex 16 (CSRF_KEY, SESSION_SECRET) / openssl rand -hex 32 (ENCRYPTION_KEY)
+CSRF_KEY = "573ce0da782c7d87b8e9c9b66532d7df"
+SESSION_SECRET = "45ebb6507376ba3385c42671eab9f8d4"
+ENCRYPTION_KEY = "b26ee2a33820ed458a6b7475e469070c91258c4542cb405a48da949f2803ad45"
+
+[tasks.dev]
+description = "Start development server with live reload"
+run = "air"
+
+[tasks.db-migrate]
+description = "Run database migrations"
+run = "migrate -path migrations -database ${DATABASE_URL} up"
+
+[tasks.db-rollback]
+description = "Rollback last migration"
+run = "migrate -path migrations -database ${DATABASE_URL} down 1"
+
+[tasks.sqlc]
+description = "Generate type-safe Go from SQL"
+run = "sqlc generate"
+
+[tasks.setup]
+description = "Initial project setup (install deps, setup DB, generate code)"
+run = """
+migrate -path migrations -database ${DATABASE_URL} up
+templ generate
+sqlc generate
+"""
+dir = "."
+
+[tasks.build]
+description = "Build production binary"
+run = """
+./tailwindcss -i styles/input.css -o static/css/tailwind.css --minify
+templ generate
+go build -o bin/go-jobs ./cmd/jobs/
+"""

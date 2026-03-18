@@ -1,0 +1,67 @@
+package components
+
+templ Contact(csrfToken string) {
+	@Layout("Contact") {
+		<div class="max-w-md mx-auto">
+			<h1 class="text-3xl font-bold mb-6">Contact Us</h1>
+			<form 
+				hx-post="/contact" 
+				hx-target="#form-result"
+				hx-swap="innerHTML"
+				class="space-y-4"
+			>
+				<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+				
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Name</span>
+					</label>
+					<input 
+						type="text" 
+						name="name" 
+						placeholder="Your name" 
+						class="input input-bordered" 
+						required
+					/>
+				</div>
+				
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Email</span>
+					</label>
+					<input 
+						type="email" 
+						name="email" 
+						placeholder="you@example.com" 
+						class="input input-bordered" 
+						required
+					/>
+				</div>
+				
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Message</span>
+					</label>
+					<textarea 
+						name="message" 
+						placeholder="Your message" 
+						class="textarea textarea-bordered h-24" 
+						required
+					></textarea>
+				</div>
+				
+				<button type="submit" class="btn btn-primary w-full">
+					Send Message
+				</button>
+			</form>
+			<div id="form-result" class="mt-4"></div>
+		</div>
+	}
+}
+
+templ ContactSuccess() {
+	<div class="alert alert-success">
+		<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+		<span>Message sent successfully!</span>
+	</div>
+}

@@ -1,0 +1,23 @@
+package components
+
+templ Layout(title string) {
+	<!DOCTYPE html>
+	<html lang="en" data-theme="light">
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+		<title>{ title }</title>
+		<link rel="stylesheet" href="/static/css/tailwind.css"/>
+		<!-- HTMX note: any link that triggers a full-page redirect (e.g. OAuth login)
+		     must have hx-boost="false" to prevent HTMX from intercepting the redirect,
+		     which causes a CORS error from the OAuth provider. -->
+		<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js"></script>
+	</head>
+	<body>
+		@Navbar()
+		<main class="container mx-auto px-4 py-8">
+			{ children... }
+		</main>
+	</body>
+	</html>
+}
