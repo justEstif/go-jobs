@@ -1,0 +1,21 @@
+{
+  "name": "@justestif/go-jobs",
+  "version": "0.0.0",
+  "description": "CLI for jobs.estifanos.cc — search job postings and track applications",
+  "bin": {
+    "jobs": "bin.js"
+  },
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "files": [
+    "bin.js",
+    "install.js",
+    "bin/"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/justEstif/go-jobs.git"
+  }
+}

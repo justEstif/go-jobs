@@ -1,0 +1,142 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build binaries
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          TAG=${{ github.ref_name }}
+          OS=${{ matrix.goos }}
+          ARCH=${{ matrix.goarch }}
+          EXT=$( [ "$OS" = "windows" ] && echo ".exe" || echo "" )
+          OUTDIR=dist/${OS}_${ARCH}
+          mkdir -p "$OUTDIR"
+
+          go build \
+            -ldflags="-s -w -X main.version=${TAG}" \
+            -o "${OUTDIR}/jobs${EXT}" \
+            ./cmd/jobs/
+
+      - name: Archive
+        run: |
+          OS=${{ matrix.goos }}
+          ARCH=${{ matrix.goarch }}
+          TAG=${{ github.ref_name }}
+          OUTDIR=dist/${OS}_${ARCH}
+          ARCHIVE=jobs_${TAG}_${OS}_${ARCH}
+
+          if [ "$OS" = "windows" ]; then
+            cd "$OUTDIR" && zip "../../${ARCHIVE}.zip" ./* && cd -
+          else
+            tar -czf "${ARCHIVE}.tar.gz" -C "$OUTDIR" .
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jobs_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: |
+            *.tar.gz
+            *.zip
+          retention-days: 1
+
+  release:
+    name: Create GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist/
+
+      - name: Generate checksums
+        run: |
+          cd dist/
+          sha256sum * > checksums.txt
+          cat checksums.txt
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+
+  publish-npm:
+    name: Publish to npm
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Stamp version and publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          TAG=${{ github.ref_name }}
+          VERSION=${TAG#v}
+
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "ERROR: '$VERSION' is not valid semver"
+            exit 1
+          fi
+
+          tmp=$(mktemp)
+          jq --arg v "$VERSION" '.version = $v' npm/go-jobs/package.json > "$tmp"
+          mv "$tmp" npm/go-jobs/package.json
+
+          echo "Publishing @justestif/go-jobs@${VERSION}..."
+          cd npm/go-jobs
+          npm publish --access public --provenance --tag latest

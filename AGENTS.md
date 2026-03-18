@@ -14,21 +14,49 @@ Architecture docs are authoritative — read them before implementing anything n
 
 ---
 
+## CLI
+
+The CLI binary is named `jobs`. Users install it via npm:
+
+```bash
+npm install -g @justestif/go-jobs
+jobs search --query "backend go"
+jobs login
+jobs pipeline
+```
+
+By default the CLI targets `http://127.0.0.1:3000` (via `BASE_URL` env in mise).
+To target the hosted server: `jobs --base-url https://jobs.estifanos.cc <command>`
+
+---
+
 ## Commands
 
 ### Development
 ```bash
 mise run dev          # Live reload server (air: CSS + templ + Go on every save)
+mise run dev:cli      # Run CLI against local dev server (BASE_URL already set in mise)
 mise run setup        # First-time setup: migrate + templ generate + sqlc generate
 ```
 
 ### Build
 ```bash
-mise run build        # Production: tailwindcss --minify + templ generate + go build
+mise run build        # Production: tailwindcss --minify + templ generate + go build → bin/jobs
 go build ./...        # Compile check (no output = clean)
 templ generate        # Regenerate _templ.go files after editing .templ files
 sqlc generate         # Regenerate queries after editing migrations/ or queries.sql
 ```
+
+### Release
+```bash
+git tag v0.1.0 && git push origin v0.1.0   # triggers .github/workflows/release.yml
+```
+The workflow: builds `jobs` for 5 platforms → creates GitHub Release with archives →
+publishes `@justestif/go-jobs` to npm.
+
+**One-time manual setup required before first publish:**
+1. `npm login` → create an automation token at npmjs.com → add as `NPM_TOKEN` secret in GitHub repo settings
+2. First publish: the package must exist on npm before provenance works — `cd npm/go-jobs && npm publish --access public` manually for v0.0.1, then let the workflow handle subsequent releases
 
 ### Database
 ```bash

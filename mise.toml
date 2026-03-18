@@ -53,7 +53,7 @@ description = "Build production binary"
 run = """
 ./tailwindcss -i styles/input.css -o static/css/tailwind.css --minify
 templ generate
-go build -o bin/go-jobs ./cmd/jobs/
+go build -o bin/jobs ./cmd/jobs/
 """
 
 

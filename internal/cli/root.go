@@ -28,9 +28,9 @@ type Services struct {
 // requiring the database when targeting a remote server.
 func NewRootCmd(services Services) *cobra.Command {
 	root := &cobra.Command{
-		Use:   "go-jobs",
+		Use:   "jobs",
 		Short: "Self-hosted job aggregator",
-		Long:  "go-jobs scrapes startup ATS platforms and tracks job applications.",
+		Long:  "jobs — CLI for jobs.estifanos.cc. Search job postings and track applications.",
 	}
 
 	// --base-url is a persistent flag so it appears in every sub-command's
