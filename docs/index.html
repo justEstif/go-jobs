@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="https://unpkg.com/missing.css@1.2.0" />
     <style>
       :root {
+        color-scheme: light;
         --brand-ink: oklch(22% 0.02 255);
         --brand-soft: oklch(96% 0.015 78);
         --brand-accent: oklch(58% 0.14 160);
@@ -59,6 +60,20 @@
 
       .feature-box {
         min-height: 100%;
+      }
+
+      .box {
+        background: color-mix(in oklab, white 90%, var(--brand-soft));
+        border-color: color-mix(in oklab, var(--brand-ink) 22%, white);
+        color: var(--brand-ink);
+        box-shadow: 0 0.5rem 1.5rem color-mix(in oklab, var(--brand-ink) 9%, transparent);
+      }
+
+      .box h3,
+      .box p,
+      .box li,
+      .box code {
+        color: var(--brand-ink);
       }
 
       .quickstart pre {
