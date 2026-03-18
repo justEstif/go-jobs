@@ -45,12 +45,12 @@ templ CompaniesPage(companies []domain.Company, hidden map[domain.CompanyID]bool
 // It is also returned as an htmx partial swap response.
 templ CompanyTogglePartial(companyID uuid.UUID, isHidden bool, csrfToken string) {
 	if isHidden {
-		<form hx-post={ "/companies/" + companyID.String() + "/show" } hx-target={ "#toggle-" + companyID.String() } hx-swap="innerHTML">
+		<form method="POST" action={ "/companies/" + companyID.String() + "/show" } hx-post={ "/companies/" + companyID.String() + "/show" } hx-target={ "#toggle-" + companyID.String() } hx-swap="innerHTML" hx-disabled-elt="button">
 			<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
 			<button type="submit" class="btn btn-xs btn-ghost text-base-content/50">Show</button>
 		</form>
 	} else {
-		<form hx-post={ "/companies/" + companyID.String() + "/hide" } hx-target={ "#toggle-" + companyID.String() } hx-swap="innerHTML">
+		<form method="POST" action={ "/companies/" + companyID.String() + "/hide" } hx-post={ "/companies/" + companyID.String() + "/hide" } hx-target={ "#toggle-" + companyID.String() } hx-swap="innerHTML" hx-disabled-elt="button">
 			<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
 			<button type="submit" class="btn btn-xs btn-ghost">Hide</button>
 		</form>
