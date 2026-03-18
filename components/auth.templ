@@ -13,27 +13,23 @@ templ RegisterPage(errMsg string, csrfToken string) {
 			}
 			<form method="POST" action="/register" class="space-y-4">
 				<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
-				<div class="form-control">
-					<label class="label py-1">
-						<span class="label-text text-xs uppercase tracking-wide">Email</span>
-					</label>
+				<div class="flex flex-col gap-1">
+					<label class="text-xs uppercase tracking-wide">Email</label>
 					<input
 						type="email"
 						name="email"
 						placeholder="you@example.com"
-						class="input input-bordered input-sm"
+						class="input input-bordered input-sm w-full"
 						required
 					/>
 				</div>
-				<div class="form-control">
-					<label class="label py-1">
-						<span class="label-text text-xs uppercase tracking-wide">Password</span>
-					</label>
+				<div class="flex flex-col gap-1">
+					<label class="text-xs uppercase tracking-wide">Password</label>
 					<input
 						type="password"
 						name="password"
 						placeholder="••••••••"
-						class="input input-bordered input-sm"
+						class="input input-bordered input-sm w-full"
 						required
 					/>
 				</div>
@@ -60,27 +56,23 @@ templ LoginPage(errMsg string, csrfToken string) {
 			}
 			<form method="POST" action="/login" class="space-y-4">
 				<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
-				<div class="form-control">
-					<label class="label py-1">
-						<span class="label-text text-xs uppercase tracking-wide">Email</span>
-					</label>
+				<div class="flex flex-col gap-1">
+					<label class="text-xs uppercase tracking-wide">Email</label>
 					<input
 						type="email"
 						name="email"
 						placeholder="you@example.com"
-						class="input input-bordered input-sm"
+						class="input input-bordered input-sm w-full"
 						required
 					/>
 				</div>
-				<div class="form-control">
-					<label class="label py-1">
-						<span class="label-text text-xs uppercase tracking-wide">Password</span>
-					</label>
+				<div class="flex flex-col gap-1">
+					<label class="text-xs uppercase tracking-wide">Password</label>
 					<input
 						type="password"
 						name="password"
 						placeholder="••••••••"
-						class="input input-bordered input-sm"
+						class="input input-bordered input-sm w-full"
 						required
 					/>
 				</div>
