@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -75,6 +76,18 @@ func main() {
 	authService := services.NewAuthService(userRepo, userRepo)
 	userService := services.NewUserService(userRepo)
 	companyService := services.NewCompanyService(companyRepo, userCompanyRepo)
+	serve := func(ctx context.Context) error {
+		return runHTTPServer(
+			ctx,
+			scrapeService,
+			enrichService,
+			authService,
+			searchService,
+			applicationService,
+			userService,
+			companyService,
+		)
+	}
 
 	// ----------------------------------------------------------------
 	// CLI — check if we're running a CLI command (any arg present)
@@ -87,6 +100,7 @@ func main() {
 			Application: applicationService,
 			Session:     userRepo,
 			Auth:        authService,
+			Serve:       serve,
 		}
 		rootCmd := cli.NewRootCmd(cliServices)
 		if err := rootCmd.Execute(); err != nil {
@@ -94,48 +108,50 @@ func main() {
 		}
 		return
 	}
+	if err := serve(context.Background()); err != nil {
+		log.Fatalf("Server failed: %v", err)
+	}
+}
 
-	// ----------------------------------------------------------------
-	// HTTP server
-	// ----------------------------------------------------------------
+func runHTTPServer(
+	ctx context.Context,
+	scrapeService ports.ScrapeService,
+	enrichService ports.EnrichService,
+	authService ports.AuthService,
+	searchService ports.JobSearchService,
+	applicationService ports.ApplicationService,
+	userService ports.UserService,
+	companyService ports.CompanyService,
+) error {
 	sessionSecret := []byte(os.Getenv("SESSION_SECRET"))
 	if len(sessionSecret) == 0 {
-		log.Fatal("SESSION_SECRET environment variable not set")
+		return errors.New("SESSION_SECRET environment variable not set")
 	}
 	sm := middleware.NewSessionManager(postgres.Pool, sessionSecret)
 
 	r := chi.NewRouter()
 
-	// Standard middleware
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.RealIP)
-
-	// scs session middleware — must come before any handler that reads/writes sessions
 	r.Use(sm.LoadAndSave)
 
-	// CSRF protection — set secure=true in production
 	csrfKey := []byte(os.Getenv("CSRF_KEY"))
 	if len(csrfKey) != 32 {
-		log.Fatal("CSRF_KEY must be exactly 32 bytes long")
+		return errors.New("CSRF_KEY must be exactly 32 bytes long")
 	}
 	csrfMw := middleware.SetupCSRF(csrfKey, false)
 
-	// Optional auth on all routes (loads user ID from session into context)
 	r.Use(middleware.OptionalAuth(sm))
-
-	// Static files (no CSRF needed)
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
-	// HTTP handler structs
 	authH := httphandlers.NewAuthHandler(authService, sm)
 	jobsH := httphandlers.NewJobSearchHandler(searchService, applicationService, userService)
 	trackerH := httphandlers.NewTrackerHandler(applicationService, searchService)
 	pipelineH := httphandlers.NewPipelineHandler(applicationService)
 	companyH := httphandlers.NewCompanyHandler(companyService)
 
-	// Public routes with CSRF
 	r.Group(func(r chi.Router) {
 		r.Use(csrfMw)
 		r.Get("/", jobsH.List)
@@ -147,22 +163,17 @@ func main() {
 		r.Get("/login", authH.ShowLogin)
 		r.Post("/login", authH.Login)
 		r.Post("/logout", authH.Logout)
-		// Job detail — public (tracker actions within are auth-gated per handler)
 		r.Get("/jobs/{id}", jobsH.Detail)
 	})
 
-	// Authenticated routes with CSRF
 	r.Group(func(r chi.Router) {
 		r.Use(csrfMw)
 		r.Use(middleware.RequireAuth(sm))
-		// Tracker actions (htmx endpoints)
 		r.Post("/jobs/{id}/interested", trackerH.Interested)
 		r.Post("/jobs/{id}/apply", trackerH.Apply)
 		r.Post("/jobs/{id}/status", trackerH.SetStatus)
 		r.Post("/jobs/{id}/notes", trackerH.SetNotes)
-		// Pipeline
 		r.Get("/pipeline", pipelineH.List)
-		// Companies
 		r.Get("/companies", companyH.List)
 		r.Post("/companies/{id}/hide", companyH.Hide)
 		r.Post("/companies/{id}/show", companyH.Show)
@@ -176,14 +187,11 @@ func main() {
 	scrapeInterval := parseDurationEnv("SCRAPE_INTERVAL", 6*time.Hour)
 	enrichLimit := parseIntEnv("ENRICH_LIMIT", 1000)
 
-	schedulerCtx, schedulerCancel := context.WithCancel(context.Background())
+	schedulerCtx, schedulerCancel := context.WithCancel(ctx)
 	defer schedulerCancel()
 	go runScheduledPipeline(schedulerCtx, scrapeService, enrichService, scrapeInterval, enrichLimit)
 
-	server := &http.Server{
-		Addr:    ":" + port,
-		Handler: r,
-	}
+	server := &http.Server{Addr: ":" + port, Handler: r}
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -198,21 +206,24 @@ func main() {
 	log.Printf("Scheduler enabled: scrape+enrich every %s (enrich_limit=%d)", scrapeInterval, enrichLimit)
 
 	select {
+	case <-ctx.Done():
+		log.Printf("Shutdown signal received: context canceled")
 	case sig := <-sigCh:
 		log.Printf("Shutdown signal received: %s", sig)
 	case err := <-errCh:
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("Server failed: %v", err)
+			return err
 		}
+		return nil
 	}
-
-	schedulerCancel()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("Server shutdown error: %v", err)
+		return fmt.Errorf("server shutdown error: %w", err)
 	}
+
+	return nil
 }
 
 func runScheduledPipeline(ctx context.Context, scrape ports.ScrapeService, enrich ports.EnrichService, interval time.Duration, enrichLimit int) {

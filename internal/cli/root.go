@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"context"
+
 	"github.com/spf13/cobra"
 
 	"github.com/justestif/go-jobs/internal/core/ports"
@@ -14,6 +16,7 @@ type Services struct {
 	Application ports.ApplicationService
 	Session     ports.SessionRepository
 	Auth        ports.AuthService
+	Serve       func(ctx context.Context) error
 }
 
 // NewRootCmd builds the cobra root command with all sub-commands attached.
@@ -37,6 +40,7 @@ func NewRootCmd(services Services) *cobra.Command {
 	root.AddCommand(newRegisterCmd(services))
 	root.AddCommand(newLoginCmd(services))
 	root.AddCommand(newLogoutCmd(services))
+	root.AddCommand(newServeCmd(services))
 
 	return root
 }
