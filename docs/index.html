@@ -95,6 +95,40 @@
         color: var(--brand-ink);
       }
 
+      .live-link {
+        font-weight: 700;
+        color: var(--brand-accent) !important;
+        background: color-mix(in oklab, var(--brand-accent) 10%, white);
+        padding: 0.2em 0.6em;
+        border-radius: 0.4em;
+        border: 1.5px solid color-mix(in oklab, var(--brand-accent) 40%, transparent);
+      }
+
+      .live-link:hover {
+        background: color-mix(in oklab, var(--brand-accent) 18%, white);
+      }
+
+      .chip-live {
+        display: inline-block;
+        font-weight: 800;
+        font-size: 1.08rem;
+        color: white !important;
+        background: var(--brand-accent);
+        padding: 0.45em 1.1em;
+        border-radius: 0.5em;
+        border: 2px solid color-mix(in oklab, var(--brand-accent) 70%, black);
+        text-decoration: none;
+        letter-spacing: 0.01em;
+        box-shadow: 0 2px 12px color-mix(in oklab, var(--brand-accent) 35%, transparent);
+        transition: background 150ms, box-shadow 150ms, transform 100ms;
+      }
+
+      .chip-live:hover {
+        background: color-mix(in oklab, var(--brand-accent) 85%, black);
+        box-shadow: 0 4px 18px color-mix(in oklab, var(--brand-accent) 45%, transparent);
+        transform: translateY(-1px);
+      }
+
       .quickstart pre {
         overflow-x: auto;
         font-size: 0.93rem;
@@ -136,6 +170,7 @@
       <header class="navbar">
         <a href="#top"><strong>go-jobs</strong></a>
         <nav>
+          <a href="https://jobs.estifanos.cc/" class="live-link">🟢 Live Demo</a>
           <a href="https://github.com/justEstif/go-jobs/blob/main/README.md">README</a>
           <a href="https://github.com/justEstif/go-jobs/blob/main/docs/ARCHITECTURE.md">Architecture</a>
           <a href="https://github.com/justEstif/go-jobs/blob/main/docs/interfaces.md">Interfaces</a>
@@ -154,6 +189,7 @@
             fast web UI and a CLI to search, filter, and track your pipeline.
           </p>
           <p>
+            <a class="chip-live border" href="https://jobs.estifanos.cc/">🟢 Try the live app →</a>
             <a class="chip ok border" href="https://github.com/justEstif/go-jobs/blob/main/README.md">Get started</a>
             <a class="chip info border" href="https://github.com/justEstif/go-jobs/blob/main/docs/self-hosting.md">Self-hosting guide</a>
             <a class="chip plain border" href="https://github.com/justEstif/go-jobs/blob/main/README.md">View repository</a>
