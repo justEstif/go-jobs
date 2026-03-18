@@ -11,8 +11,10 @@ WORKDIR /app
 RUN go install github.com/a-h/templ/cmd/templ@v0.3.1001
 RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 
-# Copy the standalone Tailwind binary (x86-64 Linux)
-COPY tailwindcss /usr/local/bin/tailwindcss
+# Download the standalone Tailwind binary (x86-64 Linux) with checksum verification
+ADD --checksum=sha256:39e8d4e24b3c83b0a6e69e100a972fbc75d5fef8dce47b3ddac3cf92dea81fe3 \
+    https://github.com/tailwindlabs/tailwindcss/releases/download/v4.2.1/tailwindcss-linux-x64 \
+    /usr/local/bin/tailwindcss
 RUN chmod +x /usr/local/bin/tailwindcss
 
 # Download Go dependencies (cached layer)
