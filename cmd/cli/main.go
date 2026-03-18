@@ -6,8 +6,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/spf13/cobra"
-
 	"github.com/justestif/go-jobs/internal/cli"
 	"github.com/justestif/go-jobs/internal/adapters/enrichment"
 	"github.com/justestif/go-jobs/internal/adapters/httpclient"
@@ -45,32 +43,6 @@ func firstCommand(args []string) string {
 
 func startsWithDash(s string) bool {
 	return len(s) > 0 && s[0] == '-'
-}
-
-func runRemoteCLI(baseURL string, args []string) int {
-	// In remote mode, we need to pre-read the token before loading root command
-	// so we can pass it to the HTTP client adapter
-	token, err := cli.ReadStoredToken()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: Failed to read auth token: %v\n", err)
-		return 1
-	}
-
-	// Create HTTP client adapters with the token
-	authClient := &httpClientAuthAdapter{
-		baseURL: baseURL,
-		token:   token,
-	}
-
-	searchClient := &httpClientSearchAdapter{
-		baseURL: baseURL,
-		token:   token,
-	}
-
-	// These would implement the core ports, but for now we'll fail
-	// until they're implemented
-	fmt.Fprintf(os.Stderr, "Remote CLI mode not yet implemented. Use local mode or contact developer.\n")
-	return 1
 }
 
 func main() {
@@ -146,7 +118,7 @@ func setupLocalServices(ctx context.Context) (cli.Services, error) {
 	seeder := scrapers.NewSimplifySeeder()
 
 	// Enrichment adapter (LLM tier disabled by default for CLI)
-	enricher := enrichment.NewTieredEnrichment(domain.LLMProvider(""), "")
+	enricher := enrichment.NewTieredEnricher(domain.LLMProvider(""), "")
 
 	// Core services
 	scrapeService := services.NewScrapeService(
@@ -161,8 +133,8 @@ func setupLocalServices(ctx context.Context) (cli.Services, error) {
 	searchService := services.NewJobSearchService(jobRepo)
 	applicationService := services.NewApplicationService(userJobRepo, jobRepo)
 	authService := services.NewAuthService(userRepo, userRepo)
-	userService := services.NewUserService(userRepo)
-	companyService := services.NewCompanyService(companyRepo, userCompanyRepo)
+	_ = services.NewUserService(userRepo) // not used in CLI
+	_ = services.NewCompanyService(companyRepo, userCompanyRepo) // not used in CLI
 	
 	serve := func(ctx context.Context) error {
 		return fmt.Errorf("server mode not available in CLI binary")
