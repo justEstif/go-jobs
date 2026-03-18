@@ -1,5 +1,7 @@
 {
   "scripts": {
-    "release": "migrate -path /app/migrations -database $DATABASE_URL up"
+    "dokku": {
+      "release": "migrate -path /app/migrations -database $DATABASE_URL up"
+    }
   }
 }
