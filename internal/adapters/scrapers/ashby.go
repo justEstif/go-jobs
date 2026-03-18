@@ -1,25 +1,25 @@
 package scrapers
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/go-json-experiment/json"
 
 	"github.com/justestif/go-jobs/internal/core/domain"
 )
 
 // AshbyAdapter implements ports.JobScraper for the Ashby ATS.
 //
-// Ashby exposes a public posting API:
+// Ashby exposes a public GET endpoint:
 //
-//	POST https://api.ashbyhq.com/posting-api/job-board/{board_name}
-//	Body: {"includeCompensation": false}
+//	GET https://api.ashbyhq.com/posting-api/job-board/{board_name}
 //
 // The board_name is the identifier from the Ashby careers URL.
+// Note: the older POST form of this endpoint now returns 401 for many boards.
 type AshbyAdapter struct {
 	client *http.Client
 }
@@ -31,16 +31,38 @@ func NewAshbyAdapter() *AshbyAdapter {
 	}
 }
 
+// ashbyPayload is the top-level response from the Ashby job board API.
+type ashbyPayload struct {
+	Jobs []struct {
+		ID             string `json:"id"`
+		Title          string `json:"title"`
+		Department     string `json:"department"`
+		EmploymentType string `json:"employmentType"`
+		Location       string `json:"location"`
+		PublishedAt    string `json:"publishedAt"`
+		IsRemote       bool   `json:"isRemote"`
+		WorkplaceType  string `json:"workplaceType"` // "Remote" | "Hybrid" | "OnSite"
+		Address        struct {
+			PostalAddress struct {
+				Region  string `json:"addressRegion"`
+				Country string `json:"addressCountry"`
+				City    string `json:"addressLocality"`
+			} `json:"postalAddress"`
+		} `json:"address"`
+		JobURL           string `json:"jobUrl"`
+		DescriptionHTML  string `json:"descriptionHtml"`
+		DescriptionPlain string `json:"descriptionPlain"`
+	} `json:"jobs"`
+}
+
 // Scrape fetches all open jobs for company from the Ashby job board API.
 func (a *AshbyAdapter) Scrape(ctx context.Context, company domain.Company) ([]domain.RawJob, error) {
 	url := fmt.Sprintf("https://api.ashbyhq.com/posting-api/job-board/%s", company.BoardToken)
 
-	body, _ := json.Marshal(map[string]bool{"includeCompensation": false})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("ashby build request for %s: %w", company.BoardToken, err)
 	}
-	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "go-jobs/1.0")
 
 	resp, err := a.client.Do(req)
@@ -56,43 +78,33 @@ func (a *AshbyAdapter) Scrape(ctx context.Context, company domain.Company) ([]do
 		return nil, fmt.Errorf("ashby %s returned HTTP %d", company.BoardToken, resp.StatusCode)
 	}
 
-	var payload struct {
-		Jobs []struct {
-			ID          string `json:"id"`
-			Title       string `json:"title"`
-			PublishedAt string `json:"publishedAt"`
-			Location    struct {
-				City    string `json:"city"`
-				Region  string `json:"region"`
-				Country string `json:"country"`
-			} `json:"location"`
-			LocationType   string `json:"locationRequirement"` // "RemoteGlobal" | "RemoteCountry" | "Onsite" | "Hybrid"
-			Department     string `json:"departmentName"`
-			JobURL         string `json:"jobUrl"`
-			Description    string `json:"descriptionHtml"`
-			EmploymentType string `json:"employmentType"` // "FullTime" | "PartTime" | "Contract" | "Intern"
-		} `json:"jobs"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	var payload ashbyPayload
+	if err := json.UnmarshalRead(resp.Body, &payload); err != nil {
 		return nil, fmt.Errorf("ashby decode %s: %w", company.BoardToken, err)
 	}
 
 	jobs := make([]domain.RawJob, 0, len(payload.Jobs))
 	for _, j := range payload.Jobs {
-		location := buildAshbyLocation(j.Location.City, j.Location.Region, j.Location.Country)
+		// Prefer descriptionPlain; fall back to stripping the HTML.
+		desc := j.DescriptionPlain
+		if desc == "" {
+			desc = stripHTML(j.DescriptionHTML)
+		}
+
+		country := j.Address.PostalAddress.Country
+		location := buildAshbyLocation(j.Location, j.Address.PostalAddress.City, j.Address.PostalAddress.Region, country)
 
 		raw := domain.RawJob{
 			ExternalID:     j.ID,
 			Title:          j.Title,
 			URL:            j.JobURL,
 			Location:       location,
-			Description:    stripHTML(j.Description),
-			RawHTML:        j.Description,
+			Description:    desc,
+			RawHTML:        j.DescriptionHTML,
 			FirstSeen:      time.Now(),
 			Department:     j.Department,
-			Country:        strings.ToUpper(j.Location.Country),
-			WorkplaceType:  ashbyWorkplaceType(j.LocationType),
+			Country:        normaliseCountry(country),
+			WorkplaceType:  ashbyWorkplaceType(j.WorkplaceType, j.IsRemote),
 			EmploymentType: ashbyEmploymentType(j.EmploymentType),
 		}
 
@@ -106,8 +118,13 @@ func (a *AshbyAdapter) Scrape(ctx context.Context, company domain.Company) ([]do
 	return jobs, nil
 }
 
-// buildAshbyLocation assembles a human-readable location string from components.
-func buildAshbyLocation(city, region, country string) string {
+// buildAshbyLocation assembles a human-readable location string.
+// Prefers the top-level location field (already formatted by Ashby),
+// falling back to address components.
+func buildAshbyLocation(topLevel, city, region, country string) string {
+	if topLevel != "" {
+		return topLevel
+	}
 	parts := []string{}
 	if city != "" {
 		parts = append(parts, city)
@@ -121,18 +138,47 @@ func buildAshbyLocation(city, region, country string) string {
 	return strings.Join(parts, ", ")
 }
 
-// ashbyWorkplaceType maps Ashby's locationRequirement to domain.WorkplaceType.
-func ashbyWorkplaceType(s string) domain.WorkplaceType {
-	switch s {
-	case "RemoteGlobal", "RemoteCountry", "Remote":
-		return domain.WorkplaceRemote
-	case "Hybrid":
-		return domain.WorkplaceHybrid
-	case "Onsite", "OnSite":
-		return domain.WorkplaceOnsite
+// normaliseCountry normalises Ashby's country string to an ISO 2-letter code where possible.
+// Ashby returns values like "USA", "United States", "Germany" etc.
+func normaliseCountry(s string) string {
+	switch strings.ToUpper(strings.TrimSpace(s)) {
+	case "USA", "UNITED STATES", "UNITED STATES OF AMERICA", "US":
+		return "US"
+	case "UK", "UNITED KINGDOM", "GREAT BRITAIN", "GB":
+		return "GB"
+	case "CANADA", "CA":
+		return "CA"
+	case "GERMANY", "DE", "DEUTSCHLAND":
+		return "DE"
+	case "FRANCE", "FR":
+		return "FR"
+	case "INDIA", "IN":
+		return "IN"
+	case "AUSTRALIA", "AU":
+		return "AU"
+	case "BRAZIL", "BR":
+		return "BR"
 	default:
-		return ""
+		// Return as-is if we don't recognise it; enrichment can normalise further.
+		return s
 	}
+}
+
+// ashbyWorkplaceType maps Ashby's workplaceType string to domain.WorkplaceType.
+func ashbyWorkplaceType(wt string, isRemote bool) domain.WorkplaceType {
+	switch strings.ToLower(wt) {
+	case "remote":
+		return domain.WorkplaceRemote
+	case "hybrid":
+		return domain.WorkplaceHybrid
+	case "onsite", "on-site", "on_site":
+		return domain.WorkplaceOnsite
+	}
+	// Fall back to isRemote flag.
+	if isRemote {
+		return domain.WorkplaceRemote
+	}
+	return ""
 }
 
 // ashbyEmploymentType maps Ashby's employmentType to domain.EmploymentType.

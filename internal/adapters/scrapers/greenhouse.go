@@ -2,11 +2,13 @@ package scrapers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/go-json-experiment/json"
+	"github.com/go-json-experiment/json/jsontext" // for jsontext.Value (raw JSON)
 
 	"github.com/justestif/go-jobs/internal/core/domain"
 )
@@ -29,8 +31,39 @@ func NewGreenhouseAdapter() *GreenhouseAdapter {
 	}
 }
 
+// greenhouseMetadata is the per-job custom metadata field returned by Greenhouse.
+// The value field is polymorphic — it can be a string, bool, number, array, or
+// object depending on the field type. We capture it as raw JSON and ignore it;
+// we only use standard structured fields (departments, offices) for ATS metadata.
+type greenhouseMetadata struct {
+	ID        int            `json:"id"`
+	Name      string         `json:"name"`
+	Value     jsontext.Value `json:"value"`
+	ValueType string         `json:"value_type"`
+}
+
+// greenhousePayload is the top-level response from the Greenhouse boards API.
+type greenhousePayload struct {
+	Jobs []struct {
+		ID          int    `json:"id"`
+		Title       string `json:"title"`
+		AbsoluteURL string `json:"absolute_url"`
+		Location    struct {
+			Name string `json:"name"`
+		} `json:"location"`
+		Content     string               `json:"content"` // HTML description
+		Metadata    []greenhouseMetadata `json:"metadata"`
+		Departments []struct {
+			Name string `json:"name"`
+		} `json:"departments"`
+		Offices []struct {
+			Name      string `json:"name"`
+			CountryID string `json:"country_id"`
+		} `json:"offices"`
+	} `json:"jobs"`
+}
+
 // Scrape fetches all open jobs for company from the Greenhouse boards API.
-// headless companies are the caller's responsibility to skip.
 func (a *GreenhouseAdapter) Scrape(ctx context.Context, company domain.Company) ([]domain.RawJob, error) {
 	url := fmt.Sprintf("https://boards-api.greenhouse.io/v1/boards/%s/jobs?content=true", company.BoardToken)
 
@@ -47,39 +80,14 @@ func (a *GreenhouseAdapter) Scrape(ctx context.Context, company domain.Company) 
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		// Board no longer exists — return empty, not an error
 		return []domain.RawJob{}, nil
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("greenhouse %s returned HTTP %d", company.BoardToken, resp.StatusCode)
 	}
 
-	var payload struct {
-		Jobs []struct {
-			ID        int    `json:"id"`
-			Title     string `json:"title"`
-			UpdatedAt string `json:"updated_at"`
-			Location  struct {
-				Name string `json:"name"`
-			} `json:"location"`
-			AbsoluteURL string `json:"absolute_url"`
-			Content     string `json:"content"` // HTML description
-			Metadata    []struct {
-				ID    int    `json:"id"`
-				Name  string `json:"name"`
-				Value string `json:"value"`
-			} `json:"metadata"`
-			Departments []struct {
-				Name string `json:"name"`
-			} `json:"departments"`
-			Offices []struct {
-				Name    string `json:"name"`
-				Country string `json:"country_id"`
-			} `json:"offices"`
-		} `json:"jobs"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	var payload greenhousePayload
+	if err := json.UnmarshalRead(resp.Body, &payload); err != nil {
 		return nil, fmt.Errorf("greenhouse decode %s: %w", company.BoardToken, err)
 	}
 
@@ -95,13 +103,11 @@ func (a *GreenhouseAdapter) Scrape(ctx context.Context, company domain.Company) 
 			FirstSeen:   time.Now(),
 		}
 
-		// ATS metadata — department → role hint, offices → country
 		if len(j.Departments) > 0 {
 			raw.Department = j.Departments[0].Name
 		}
-		if len(j.Offices) > 0 && j.Offices[0].Country != "" {
-			// Greenhouse country_id is a 2-letter ISO code
-			raw.Country = strings.ToUpper(j.Offices[0].Country)
+		if len(j.Offices) > 0 && j.Offices[0].CountryID != "" {
+			raw.Country = strings.ToUpper(j.Offices[0].CountryID)
 		}
 
 		jobs = append(jobs, raw)
@@ -111,7 +117,6 @@ func (a *GreenhouseAdapter) Scrape(ctx context.Context, company domain.Company) 
 }
 
 // stripHTML removes HTML tags from a string, returning plain text.
-// This is a simple approach suitable for job descriptions.
 func stripHTML(s string) string {
 	var b strings.Builder
 	inTag := false
@@ -125,7 +130,6 @@ func stripHTML(s string) string {
 			b.WriteRune(r)
 		}
 	}
-	// Collapse multiple blank lines
 	result := strings.ReplaceAll(b.String(), "\n\n\n", "\n\n")
 	return strings.TrimSpace(result)
 }

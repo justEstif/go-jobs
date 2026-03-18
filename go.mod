@@ -1,6 +1,6 @@
 module github.com/justestif/go-jobs
 
-go 1.23.0
+go 1.26
 
 require (
 	github.com/a-h/templ v0.3.1001
@@ -10,6 +10,7 @@ require (
 )
 
 require (
+	github.com/go-json-experiment/json v0.0.0-20260214004413-d219187c3433 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/gorilla/sessions v1.4.0 // indirect

@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: go-jobs
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.local/share/mise
+          key: mise-${{ runner.os }}-${{ hashFiles('mise.lock') }}
+
+      - uses: jdx/mise-action@v3
+
+      - name: Run migrations & generate code
+        run: mise run setup
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/go-jobs?sslmode=disable
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/go-jobs?sslmode=disable
+
+      - name: Build
+        run: go build ./...
