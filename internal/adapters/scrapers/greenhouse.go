@@ -3,6 +3,7 @@ package scrapers
 import (
 	"context"
 	"fmt"
+	"html"
 	"net/http"
 	"strings"
 	"time"
@@ -116,7 +117,9 @@ func (a *GreenhouseAdapter) Scrape(ctx context.Context, company domain.Company) 
 	return jobs, nil
 }
 
-// stripHTML removes HTML tags from a string, returning plain text.
+// stripHTML removes HTML tags from a string and decodes HTML entities,
+// returning plain text. Entity decoding runs after tag removal so that
+// entities embedded in attribute values or tag bodies are both handled.
 func stripHTML(s string) string {
 	var b strings.Builder
 	inTag := false
@@ -131,5 +134,5 @@ func stripHTML(s string) string {
 		}
 	}
 	result := strings.ReplaceAll(b.String(), "\n\n\n", "\n\n")
-	return strings.TrimSpace(result)
+	return strings.TrimSpace(html.UnescapeString(result))
 }

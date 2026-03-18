@@ -19,6 +19,12 @@ type Company struct {
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
+type HttpSession struct {
+	Token  string             `json:"token"`
+	Data   []byte             `json:"data"`
+	Expiry pgtype.Timestamptz `json:"expiry"`
+}
+
 type Job struct {
 	ID          pgtype.UUID        `json:"id"`
 	CompanyID   pgtype.UUID        `json:"company_id"`

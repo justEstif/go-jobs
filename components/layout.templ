@@ -7,11 +7,35 @@ templ Layout(title string, loggedIn bool, csrfToken string) {
 		<meta charset="UTF-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 		<title>{ title } — go-jobs</title>
+		<link rel="preconnect" href="https://fonts.googleapis.com"/>
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,300;1,9..144,400&family=DM+Sans:wght@300;400;500;600&display=swap"/>
 		<link rel="stylesheet" href="/static/css/tailwind.css"/>
 		<!-- HTMX note: any link that triggers a full-page redirect (e.g. OAuth login)
 		     must have hx-boost="false" to prevent HTMX from intercepting the redirect,
 		     which causes a CORS error from the OAuth provider. -->
 		<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js"></script>
+		<style>
+			:root {
+				--font-display: 'Fraunces', Georgia, serif;
+				--font-body: 'DM Sans', system-ui, sans-serif;
+			}
+			body {
+				font-family: var(--font-body);
+				font-weight: 400;
+				font-kerning: normal;
+				-webkit-font-smoothing: antialiased;
+			}
+			h1, h2, h3 {
+				font-family: var(--font-display);
+				font-weight: 300;
+				letter-spacing: -0.02em;
+			}
+			/* Tabular numbers for any numeric data */
+			.tabular-nums {
+				font-variant-numeric: tabular-nums;
+			}
+		</style>
 	</head>
 	<body class="min-h-screen bg-base-200">
 		@Navbar(loggedIn, csrfToken)
