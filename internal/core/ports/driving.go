@@ -72,3 +72,14 @@ type CompanyService interface {
 	// ListCompanies returns all active companies excluding those hidden by the user.
 	ListCompanies(ctx context.Context, userID domain.UserID) ([]domain.Company, error)
 }
+
+// EnrichService runs the enrichment pipeline over un-tagged jobs.
+//
+// It fetches up to limit un-enriched jobs, runs each through the JobEnricher,
+// and persists the resulting tags. Errors on individual jobs are logged and
+// skipped — a single failing enrichment does not abort the batch.
+type EnrichService interface {
+	// Run enriches up to limit un-tagged jobs. Returns the count of
+	// successfully enriched jobs and jobs that failed enrichment.
+	Run(ctx context.Context, limit int) (enriched, failed int, err error)
+}

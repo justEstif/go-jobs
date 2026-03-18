@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 
+	"github.com/justestif/go-jobs/internal/adapters/enrichment"
 	httphandlers "github.com/justestif/go-jobs/internal/adapters/http"
 	"github.com/justestif/go-jobs/internal/adapters/http/middleware"
 	"github.com/justestif/go-jobs/internal/adapters/postgres"
@@ -43,16 +44,23 @@ func main() {
 	seeder := scrapers.NewSimplifySeeder()
 
 	// ----------------------------------------------------------------
+	// Enrichment adapter (tiered: ATS → rules → LLM)
+	// LLM tier is disabled until the user configures an API key (M5).
+	// ----------------------------------------------------------------
+	enricher := enrichment.NewTieredEnricher(domain.LLMProvider(""), "")
+
+	// ----------------------------------------------------------------
 	// Core services
 	// ----------------------------------------------------------------
 	scrapeService := services.NewScrapeService(
 		companyRepo,
 		jobRepo,
 		scraperMap,
-		nil, // enricher — not wired until M2
+		enricher,
 		scrapeRunRepo,
 		seeder,
 	)
+	enrichService := services.NewEnrichService(jobRepo, enricher)
 
 	// ----------------------------------------------------------------
 	// CLI — check if we're running a CLI command (any arg present)
@@ -60,6 +68,7 @@ func main() {
 	if len(os.Args) > 1 {
 		cliServices := cli.Services{
 			Scrape: scrapeService,
+			Enrich: enrichService,
 		}
 		rootCmd := cli.NewRootCmd(cliServices)
 		if err := rootCmd.Execute(); err != nil {

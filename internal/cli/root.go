@@ -9,6 +9,7 @@ import (
 // Services holds the driving-port implementations injected by the composition root.
 type Services struct {
 	Scrape ports.ScrapeService
+	Enrich ports.EnrichService
 }
 
 // NewRootCmd builds the cobra root command with all sub-commands attached.
@@ -21,6 +22,7 @@ func NewRootCmd(services Services) *cobra.Command {
 	}
 
 	root.AddCommand(newScrapeCmd(services))
+	root.AddCommand(newEnrichCmd(services))
 
 	return root
 }
