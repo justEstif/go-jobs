@@ -54,9 +54,13 @@ git tag v0.1.0 && git push origin v0.1.0   # triggers .github/workflows/release.
 The workflow: builds `jobs` for 5 platforms → creates GitHub Release with archives →
 publishes `@justestif/go-jobs` to npm.
 
-**One-time manual setup required before first publish:**
-1. `npm login` → create an automation token at npmjs.com → add as `NPM_TOKEN` secret in GitHub repo settings
-2. First publish: the package must exist on npm before provenance works — `cd npm/go-jobs && npm publish --access public` manually for v0.0.1, then let the workflow handle subsequent releases
+**One-time manual setup required before first publish (npm Trusted Publishing):**
+1. Publish the package manually once to create it on npm: `cd npm/go-jobs && npm publish --access public`
+2. On npmjs.com → package settings → **Trusted Publisher** → GitHub Actions:
+   - Organization/user: `justEstif`
+   - Repository: `go-jobs`
+   - Workflow filename: `release.yml`
+3. That's it — no `NPM_TOKEN` secret needed. The workflow uses short-lived OIDC tokens.
 
 ### Database
 ```bash

@@ -110,6 +110,9 @@ jobs:
     name: Publish to npm
     needs: release
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # required for npm trusted publishing (OIDC — no NPM_TOKEN needed)
+      contents: read
 
     steps:
       - name: Checkout
@@ -118,12 +121,13 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
+      - name: Install latest npm (trusted publishing requires npm >= 11.5.1)
+        run: npm install -g npm@latest
+
       - name: Stamp version and publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           TAG=${{ github.ref_name }}
           VERSION=${TAG#v}
@@ -139,4 +143,4 @@ jobs:
 
           echo "Publishing @justestif/go-jobs@${VERSION}..."
           cd npm/go-jobs
-          npm publish --access public --provenance --tag latest
+          npm publish --access public --tag latest

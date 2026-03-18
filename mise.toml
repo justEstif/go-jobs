@@ -12,7 +12,6 @@ go = "latest"
 [env]
 DATABASE_URL = "postgres://postgres:postgres@localhost:5432/go-jobs?sslmode=disable"
 PORT = "3000"
-BASE_URL = "http://127.0.0.1:3000"
 # Use 127.0.0.1 (not localhost) for OAuth redirect URIs — some providers (e.g. Spotify) reject localhost
 # Regenerate with: openssl rand -hex 16 (CSRF_KEY, SESSION_SECRET) / openssl rand -hex 32 (ENCRYPTION_KEY)
 CSRF_KEY = "573ce0da782c7d87b8e9c9b66532d7df"
@@ -46,6 +45,7 @@ dir = "."
 
 [tasks."dev:cli"]
 description = "Run CLI against the local dev server (BASE_URL=http://127.0.0.1:3000). Example: mise run dev:cli search -- --query 'go engineer'"
+env = { BASE_URL = "http://127.0.0.1:3000" }
 run = 'go run ./cmd/jobs/ {{arg(name="args", var=true)}}'
 
 [tasks.build]
