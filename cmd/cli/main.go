@@ -6,11 +6,11 @@ import (
 	"log"
 	"os"
 
-	"github.com/justestif/go-jobs/internal/cli"
 	"github.com/justestif/go-jobs/internal/adapters/enrichment"
 	"github.com/justestif/go-jobs/internal/adapters/httpclient"
 	"github.com/justestif/go-jobs/internal/adapters/postgres"
 	"github.com/justestif/go-jobs/internal/adapters/scrapers"
+	"github.com/justestif/go-jobs/internal/cli"
 	"github.com/justestif/go-jobs/internal/core/domain"
 	"github.com/justestif/go-jobs/internal/core/ports"
 	"github.com/justestif/go-jobs/internal/core/services"
@@ -47,7 +47,7 @@ func startsWithDash(s string) bool {
 
 func main() {
 	baseURL := resolveBaseURL()
-	
+
 	// Check if this should be a remote CLI session
 	if baseURL != "" && firstCommand(os.Args) != "" {
 		runRemoteCLI(baseURL)
@@ -133,9 +133,9 @@ func setupLocalServices(ctx context.Context) (cli.Services, error) {
 	searchService := services.NewJobSearchService(jobRepo)
 	applicationService := services.NewApplicationService(userJobRepo, jobRepo)
 	authService := services.NewAuthService(userRepo, userRepo)
-	_ = services.NewUserService(userRepo) // not used in CLI
+	_ = services.NewUserService(userRepo)                        // not used in CLI
 	_ = services.NewCompanyService(companyRepo, userCompanyRepo) // not used in CLI
-	
+
 	serve := func(ctx context.Context) error {
 		return fmt.Errorf("server mode not available in CLI binary")
 	}
