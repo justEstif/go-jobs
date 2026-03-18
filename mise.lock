@@ -50,3 +50,7 @@ tags = "postgres"
 [[tools."go:github.com/sqlc-dev/sqlc/cmd/sqlc"]]
 version = "1.30.0"
 backend = "go:github.com/sqlc-dev/sqlc/cmd/sqlc"
+
+[[tools."npm:agent-browser"]]
+version = "0.21.0"
+backend = "npm:agent-browser"

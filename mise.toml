@@ -7,6 +7,7 @@ go = "latest"
 "go:github.com/sqlc-dev/sqlc/cmd/sqlc" = "latest"
 "go:github.com/golang-migrate/migrate/v4/cmd/migrate" = { version = "latest", tags = "postgres" }
 "go:github.com/air-verse/air" = "latest"
+"npm:agent-browser" = "latest"
 
 [env]
 DATABASE_URL = "postgres://postgres:postgres@localhost:5432/go-jobs?sslmode=disable"
