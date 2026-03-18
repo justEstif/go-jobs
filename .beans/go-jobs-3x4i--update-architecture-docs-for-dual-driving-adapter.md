@@ -1,10 +1,11 @@
 ---
 # go-jobs-3x4i
 title: Update architecture docs for dual driving adapter pattern
-status: todo
+status: in-progress
 type: task
+priority: normal
 created_at: 2026-03-18T21:36:57Z
-updated_at: 2026-03-18T21:36:57Z
+updated_at: 2026-03-18T21:47:35Z
 parent: go-jobs-qlpf
 ---
 

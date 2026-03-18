@@ -44,6 +44,10 @@ sqlc generate
 """
 dir = "."
 
+[tasks."dev:cli"]
+description = "Run CLI against the local dev server (BASE_URL=http://127.0.0.1:3000). Example: mise run dev:cli search -- --query 'go engineer'"
+run = 'go run ./cmd/jobs/ {{arg(name="args", var=true)}}'
+
 [tasks.build]
 description = "Build production binary"
 run = """
@@ -51,3 +55,5 @@ run = """
 templ generate
 go build -o bin/go-jobs ./cmd/jobs/
 """
+
+

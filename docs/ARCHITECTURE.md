@@ -103,14 +103,14 @@ Ports are interfaces defined by the core. The core owns them — adapters implem
 
 These define how the outside world uses the core. CLI, HTTP handlers, the scheduler, and tests all call through these interfaces.
 
-| Port                 | Methods (sketch)                                                                                                                            | Callers                    |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| `JobSearchService`   | `Search(filters, userCtx) ([]Job, error)`, `GetByID(id) (Job, error)`                                                                      | CLI, Web UI                |
-| `ApplicationService` | `SetStatus(userID, jobID, status)`, `SetNotes(userID, jobID, notes)`, `GetUserJob(userID, jobID)`, `ListByStatus(userID, status)`, `ListPipeline(userID)` | CLI, Web UI   |
-| `ScrapeService`      | `Run(ctx) error`, `SeedCompanies(ctx) error`, `LatestRun(ctx) (ScrapeRun, error)`                                                           | Scheduler adapter, Web UI  |
-| `AuthService`        | `Register(email, password)`, `Login(email, password) token`, `Logout(token)`, `Authenticate(token) (User, error)`                          | HTTP middleware, CLI        |
-| `UserService`        | `SetLLMKey(userID, provider, key)`, `GetByID(userID) (User, error)`, `TouchLastVisited(userID)`                                             | Web UI, CLI                |
-| `CompanyService`     | `HideCompany(userID, companyID)`, `ShowCompany(userID, companyID)`, `ListCompanies(userID) ([]Company, error)`                              | Web UI                     |
+| Port                 | Methods (sketch)                                                                                                                            | Callers                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `JobSearchService`   | `Search(filters, userCtx) ([]Job, error)`, `GetByID(id) (Job, error)`                                                                      | CLI (local + remote), HTML UI, JSON API    |
+| `ApplicationService` | `SetStatus(userID, jobID, status)`, `SetNotes(userID, jobID, notes)`, `GetUserJob(userID, jobID)`, `ListByStatus(userID, status)`, `ListPipeline(userID)` | CLI (local + remote), HTML UI, JSON API   |
+| `ScrapeService`      | `Run(ctx) error`, `SeedCompanies(ctx) error`, `LatestRun(ctx) (ScrapeRun, error)`                                                           | Scheduler adapter, CLI (local only)        |
+| `AuthService`        | `Register(email, password)`, `Login(email, password) token`, `Logout(token)`, `Authenticate(token) (User, error)`                          | HTTP middleware, CLI (local + remote)      |
+| `UserService`        | `SetLLMKey(userID, provider, key)`, `GetByID(userID) (User, error)`, `TouchLastVisited(userID)`                                             | HTML UI, CLI                               |
+| `CompanyService`     | `HideCompany(userID, companyID)`, `ShowCompany(userID, companyID)`, `ListCompanies(userID) ([]Company, error)`                              | HTML UI                                    |
 
 ### Driven ports (core → outside world)
 
@@ -148,41 +148,52 @@ These define what the core needs from infrastructure. The core calls them; adapt
 
     ┌─────────────────┐                                      ┌──────────────────────┐
     │   CLI (cobra)   │                                      │  Postgres adapter    │
-    │                 │──── AuthService ────────────────────▶│  (sqlc)              │
-    │  search         │──── JobSearchService ───────────────▶│                      │
-    │  interested     │──── ApplicationService ─────────────▶│  JobRepository       │
-    │  apply          │──── UserService ────────────────────▶│  CompanyRepository   │
-    │                 │──── CompanyService ─────────────────▶│  UserRepository      │
+    │   local mode    │──── AuthService ────────────────────▶│  (sqlc)              │
+    │                 │──── JobSearchService ───────────────▶│                      │
+    │  search/pipeline│──── ApplicationService ─────────────▶│  JobRepository       │
+    │  scrape/enrich  │──── ScrapeService ──────────────────▶│  CompanyRepository   │
+    │  serve          │                                      │  UserRepository      │
     └─────────────────┘                                      │  SessionRepository   │
                               ┌──────────────────┐           │  UserJobRepository   │
     ┌─────────────────┐       │                  │           │  ScrapeRunRepository │
-    │  HTTP middleware│──────▶│   C O R E        │           │  UserCompanyRepo     │
-    │  (auth)         │       │                  │           └──────────────────────┘
-    │                 │       │  AuthService     │
-    │  Web UI         │       │  JobSearchService│           ┌──────────────────────┐
-    │  (Chi + templ   │──────▶│  ApplicationSvc  │──────────▶│  Scraper adapters    │
-    │   + htmx)       │       │  ScrapeService   │           │                      │
-    │                 │       │  UserService     │           │  GreenhouseAdapter   │
-    │  browse/filter  │       │  CompanyService  │           │  LeverAdapter        │
-    │  apply          │       │                  │           │  AshbyAdapter        │
-    │  hide company   │       └──────────────────┘           │                      │
-    └─────────────────┘                                      │  impl: JobScraper    │
-                                                             └──────────────────────┘
-    ┌─────────────────┐
-    │  Scheduler      │                                      ┌──────────────────────┐
-    │  (time.Ticker)  │──── ScrapeService.Run ──────────────▶│  Enrichment adapter  │
-    │                 │                                      │                      │
-    └─────────────────┘                                      │  tier 1: ATS fields  │
-                                                             │  tier 2: rules       │
+    │   CLI (cobra)   │       │   C O R E        │           │  UserCompanyRepo     │
+    │   remote mode   │       │                  │           └──────────────────────┘
+    │  (httpclient    │──────▶│  AuthService     │
+    │   adapter)      │       │  JobSearchService│           ┌──────────────────────┐
+    │                 │       │  ApplicationSvc  │──────────▶│  Scraper adapters    │
+    │  search/pipeline│       │  ScrapeService   │           │                      │
+    │  login/logout   │       │  UserService     │           │  GreenhouseAdapter   │
+    └─────────────────┘       │  CompanyService  │           │  LeverAdapter        │
+                              │                  │           │  AshbyAdapter        │
+    ┌─────────────────┐       └──────────────────┘           │                      │
+    │  HTTP handlers  │              ▲                       │  impl: JobScraper    │
+    │                 │              │                       └──────────────────────┘
+    │  HTML routes    │──────────────┤
+    │  (templ + htmx) │              │                       ┌──────────────────────┐
+    │                 │              │                       │  Enrichment adapter  │
+    │  /api/v1/ routes│──────────────┘                      │                      │
+    │  (JSON API)     │                                      │  tier 1: ATS fields  │
+    └─────────────────┘                                      │  tier 2: rules       │
                                                              │  tier 3: LLM/GenKit  │
-                                                             │                      │
-                                                             │  impl: JobEnricher   │
-                                                             └──────────────────────┘
+    ┌─────────────────┐                                      │                      │
+    │  HTTP middleware │                                      │  impl: JobEnricher   │
+    │  (session auth  │                                      └──────────────────────┘
+    │   bearer auth)  │
+    └─────────────────┘
+
+    ┌─────────────────┐
+    │  Scheduler      │
+    │  (time.Ticker)  │──── ScrapeService.Run
+    └─────────────────┘
 ```
 
 **Dependency rule:** arrows point inward. Adapters depend on core interfaces. The core depends on nothing outside itself.
 
-**Composition root** (`cmd/jobs/main.go`): the only place that knows about all concrete types. Instantiates adapters, wires them into core services, hands services to delivery adapters.
+**Two driving adapters for HTTP:** The HTML handlers (`/`) and the JSON API (`/api/v1/`) are two separate driving adapters that call the same core services. The HTML adapter renders templ templates; the JSON API returns structured data for the CLI and other clients. Neither knows about the other.
+
+**Two CLI modes:** The CLI cobra commands are wired differently depending on whether a base URL is configured. In local mode the composition root injects in-process service implementations that talk directly to Postgres. In remote mode it injects `httpclient` adapters that call the `/api/v1/` endpoints over HTTP — no database connection required.
+
+**Composition root** (`cmd/jobs/main.go`): the only place that knows about all concrete types. Detects the mode (local vs. remote), instantiates the appropriate adapters, wires them into core services, and hands services to delivery adapters.
 
 ## Folder Structure
 
@@ -225,21 +236,42 @@ go-jobs/
 │   │   │   ├── rules.go          -- tier 2: keyword/regex matching
 │   │   │   └── llm.go            -- tier 3: GenKit LLM call
 │   │   │
-│   │   ├── http/                 -- driving: Chi router + templ handlers
-│   │   │   ├── router.go
-│   │   │   ├── jobs.go
-│   │   │   ├── applications.go
+│   │   ├── http/                 -- driving: HTML routes (templ + htmx) + JSON API (/api/v1/)
+│   │   │   ├── auth.go           -- HTML: /register, /login, /logout
+│   │   │   ├── jobs.go           -- HTML: /, /jobs/{id}
+│   │   │   ├── tracker.go        -- HTML: /jobs/{id}/interested|apply|status|notes
+│   │   │   ├── pipeline.go       -- HTML: /pipeline
+│   │   │   ├── companies.go      -- HTML: /companies
+│   │   │   ├── api/              -- JSON API driving adapter (package api)
+│   │   │   │   ├── handler.go    -- Handler struct, writeJSON/writeError helpers
+│   │   │   │   ├── auth.go       -- POST /api/v1/auth/{register,login,logout,me}
+│   │   │   │   ├── jobs.go       -- GET  /api/v1/jobs, /jobs/interested, /jobs/applied
+│   │   │   │   ├── tracker.go    -- POST /api/v1/jobs/{id}/{interested,apply,status,notes}
+│   │   │   │   └── pipeline.go   -- GET  /api/v1/pipeline
 │   │   │   └── middleware/
+│   │   │       ├── session.go    -- scs session management + UserID context helpers
+│   │   │       ├── auth.go       -- OptionalAuth, RequireAuth (session-based, for HTML routes)
+│   │   │       ├── bearer.go     -- BearerAuth middleware (token-based, for /api/v1/ routes)
+│   │   │       └── csrf.go
+│   │   │
+│   │   ├── httpclient/           -- driving: CLI remote mode — implements ports over HTTP
+│   │   │   ├── client.go         -- shared Client (baseURL, token, http.Client) + request helpers
+│   │   │   ├── auth.go           -- AuthClient: implements AuthService + SessionRepository
+│   │   │   ├── search.go         -- SearchClient: implements JobSearchService
+│   │   │   └── application.go    -- ApplicationClient: implements ApplicationService
 │   │   │
 │   │   └── scheduler/            -- driving: time.Ticker → ScrapeService.Run
 │   │       └── scheduler.go
 │   │
-│   └── cli/                      -- driving: cobra commands → core services
-│       ├── root.go
+│   └── cli/                      -- driving: cobra commands → core services (local or remote)
+│       ├── root.go               -- Services struct, NewRootCmd, --base-url persistent flag
 │       ├── search.go
-│       ├── interested.go
-│       ├── apply.go
-│       └── scrape.go
+│       ├── tracker.go            -- interested, apply, status, notes, applied, pipeline
+│       ├── auth.go               -- register, login, logout
+│       ├── scrape.go             -- local only
+│       ├── enrich.go             -- local only
+│       ├── serve.go              -- local only
+│       └── token.go              -- XDG token file helpers
 │
 ├── components/                   -- templ templates
 ├── migrations/                   -- golang-migrate SQL files
@@ -252,6 +284,68 @@ Key constraints:
 
 - `internal/core/` has **zero imports** from `internal/adapters/`. The Go import graph enforces the dependency rule at compile time.
 - `internal/adapters/postgres/queries/` is sqlc-generated and **never imported outside `internal/adapters/postgres/`**. The postgres adapter maps sqlc types (`db.Job`, `db.Company`, etc.) to core domain types before returning them. sqlc types are an implementation detail of the adapter, not domain types.
+
+## CLI Remote Mode
+
+The CLI can operate in two modes depending on whether a base URL is configured.
+
+### Mode detection (composition root)
+
+`cmd/jobs/main.go` pre-scans `os.Args` and `BASE_URL` env before booting any adapters:
+
+1. `--base-url=<url>` flag in `os.Args` (highest precedence)
+2. `--base-url <url>` flag in `os.Args`
+3. `BASE_URL` environment variable
+4. Empty → local mode
+
+### Command split
+
+| Command | Local mode | Remote mode |
+|---|---|---|
+| `serve` | ✅ starts the HTTP server | ❌ local only |
+| `scrape` | ✅ runs scrape pipeline | ❌ local only |
+| `enrich` | ✅ runs enrichment pipeline | ❌ local only |
+| `search` | in-process service | `GET /api/v1/jobs` |
+| `interested` | in-process service | `GET /api/v1/jobs/interested` |
+| `applied` | in-process service | `GET /api/v1/jobs/applied` |
+| `pipeline` | in-process service | `GET /api/v1/pipeline` |
+| `apply` | in-process service | `POST /api/v1/jobs/{id}/apply` |
+| `status` | in-process service | `POST /api/v1/jobs/{id}/status` |
+| `notes` | in-process service | `POST /api/v1/jobs/{id}/notes` |
+| `register` | in-process service | `POST /api/v1/auth/register` |
+| `login` | in-process service | `POST /api/v1/auth/login` |
+| `logout` | in-process service | `POST /api/v1/auth/logout` |
+
+`serve`, `scrape`, and `enrich` always use local mode regardless of base URL — they require direct DB access.
+
+### Auth flow (remote mode)
+
+1. `go-jobs login --base-url https://myjobs.io` → `POST /api/v1/auth/login` → token written to `~/.config/go-jobs/token`
+2. Subsequent commands read the token file and pass `Authorization: Bearer <token>` on every API request
+3. `go-jobs logout` → `POST /api/v1/auth/logout` → server invalidates the token; local file deleted
+
+### JSON API routes
+
+All routes are under `/api/v1/`. Public routes require no auth; protected routes require `Authorization: Bearer <token>`.
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/v1/auth/register` | public | Create account |
+| `POST` | `/api/v1/auth/login` | public | Returns `{"token": "..."}` |
+| `GET`  | `/api/v1/auth/me` | Bearer | Returns current user |
+| `POST` | `/api/v1/auth/logout` | Bearer | Invalidates token |
+| `GET`  | `/api/v1/jobs` | optional Bearer | Search jobs (query params mirror CLI flags) |
+| `GET`  | `/api/v1/jobs/interested` | Bearer | List interested jobs |
+| `GET`  | `/api/v1/jobs/applied` | Bearer | List applied jobs |
+| `POST` | `/api/v1/jobs/{id}/interested` | Bearer | Mark as interested |
+| `POST` | `/api/v1/jobs/{id}/apply` | Bearer | Mark as applied |
+| `POST` | `/api/v1/jobs/{id}/status` | Bearer | Set status (`{"status": "..."}`) |
+| `POST` | `/api/v1/jobs/{id}/notes` | Bearer | Set notes (`{"notes": "..."}`) |
+| `GET`  | `/api/v1/pipeline` | Bearer | All tracked jobs grouped by status |
+
+### httpclient adapter
+
+`internal/adapters/httpclient/` implements the same driving port interfaces (`AuthService`, `JobSearchService`, `ApplicationService`, `SessionRepository`) as the in-process services, but over HTTP. The CLI cobra commands are identical in both modes — only the injected implementations differ. The composition root is the only place that knows which mode is active.
 
 ## Data Sources
 
