@@ -59,6 +59,9 @@ dokku_cmd postgres:create "$DB_NAME" || echo "  (already exists)"
 echo "▶ Linking database"
 dokku_cmd postgres:link "$DB_NAME" "$APP_NAME" || echo "  (already linked)"
 
+echo "▶ Configuring port mapping: http:80 → 3000"
+dokku_cmd ports:add "$APP_NAME" http:80:3000 || echo "  (already set)"
+
 echo "▶ Configuring log rotation"
 dokku_cmd docker-options:add "$APP_NAME" deploy,run \
   "--log-opt max-size=50m --log-opt max-file=10"
