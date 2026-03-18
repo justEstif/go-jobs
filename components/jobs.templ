@@ -115,7 +115,7 @@ templ JobsListPage(jobs []domain.Job, filters domain.SearchFilters, loggedIn boo
 
 // FilterPanel renders the multi-select filter sidebar.
 templ FilterPanel(filters domain.SearchFilters) {
-	<aside class="w-52 shrink-0">
+	<aside class="w-52 min-h-full bg-base-200 p-4 pt-6">
 		<form method="GET" action="/" id="filter-form">
 			if filters.Query != "" {
 				<input type="hidden" name="q" value={ filters.Query }/>
