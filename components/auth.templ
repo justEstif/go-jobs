@@ -1,0 +1,93 @@
+package components
+
+// RegisterPage renders the account registration form.
+// errMsg is displayed when non-empty (e.g. "email already taken").
+templ RegisterPage(errMsg string) {
+	@Layout("Create account") {
+		<div class="max-w-sm mx-auto mt-12">
+			<h1 class="text-3xl font-bold mb-6">Create account</h1>
+			if errMsg != "" {
+				<div class="alert alert-error mb-4">
+					<span>{ errMsg }</span>
+				</div>
+			}
+			<form method="POST" action="/register" class="space-y-4">
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Email</span>
+					</label>
+					<input
+						type="email"
+						name="email"
+						placeholder="you@example.com"
+						class="input input-bordered"
+						required
+					/>
+				</div>
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Password</span>
+					</label>
+					<input
+						type="password"
+						name="password"
+						placeholder="••••••••"
+						class="input input-bordered"
+						required
+					/>
+				</div>
+				<button type="submit" class="btn btn-primary w-full">Create account</button>
+			</form>
+			<p class="mt-4 text-sm text-center">
+				Already have an account?
+				<a href="/login" class="link link-primary">Sign in</a>
+			</p>
+		</div>
+	}
+}
+
+// LoginPage renders the sign-in form.
+// errMsg is displayed when non-empty (e.g. "Invalid email or password").
+templ LoginPage(errMsg string) {
+	@Layout("Sign in") {
+		<div class="max-w-sm mx-auto mt-12">
+			<h1 class="text-3xl font-bold mb-6">Sign in</h1>
+			if errMsg != "" {
+				<div class="alert alert-error mb-4">
+					<span>{ errMsg }</span>
+				</div>
+			}
+			<form method="POST" action="/login" class="space-y-4">
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Email</span>
+					</label>
+					<input
+						type="email"
+						name="email"
+						placeholder="you@example.com"
+						class="input input-bordered"
+						required
+					/>
+				</div>
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Password</span>
+					</label>
+					<input
+						type="password"
+						name="password"
+						placeholder="••••••••"
+						class="input input-bordered"
+						required
+					/>
+				</div>
+				<button type="submit" class="btn btn-primary w-full">Sign in</button>
+			</form>
+			<p class="mt-4 text-sm text-center">
+				Don't have an account?
+				<a href="/register" class="link link-primary">Create one</a>
+			</p>
+		</div>
+	}
+}

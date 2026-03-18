@@ -65,6 +65,7 @@ func main() {
 	enrichService := services.NewEnrichService(jobRepo, enricher)
 	searchService := services.NewJobSearchService(jobRepo)
 	applicationService := services.NewApplicationService(userJobRepo, jobRepo)
+	authService := services.NewAuthService(userRepo, userRepo)
 
 	// ----------------------------------------------------------------
 	// CLI — check if we're running a CLI command (any arg present)
@@ -76,6 +77,7 @@ func main() {
 			Search:      searchService,
 			Application: applicationService,
 			Session:     userRepo,
+			Auth:        authService,
 		}
 		rootCmd := cli.NewRootCmd(cliServices)
 		if err := rootCmd.Execute(); err != nil {
@@ -91,7 +93,7 @@ func main() {
 	if len(sessionSecret) == 0 {
 		log.Fatal("SESSION_SECRET environment variable not set")
 	}
-	sm := middleware.NewSessionManager(sessionSecret)
+	sm := middleware.NewSessionManager(postgres.Pool, sessionSecret)
 
 	r := chi.NewRouter()
 
@@ -101,26 +103,36 @@ func main() {
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.RealIP)
 
-	// CSRF protection - set secure=true in production
+	// scs session middleware — must come before any handler that reads/writes sessions
+	r.Use(sm.LoadAndSave)
+
+	// CSRF protection — set secure=true in production
 	csrfKey := []byte(os.Getenv("CSRF_KEY"))
 	if len(csrfKey) != 32 {
 		log.Fatal("CSRF_KEY must be exactly 32 bytes long")
 	}
 	csrfMw := middleware.SetupCSRF(csrfKey, false)
 
-	// Optional auth on all routes (loads user from session into context)
+	// Optional auth on all routes (loads user ID from session into context)
 	r.Use(middleware.OptionalAuth(sm))
 
 	// Static files (no CSRF needed)
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
-	// Protected routes with CSRF
+	authH := httphandlers.NewAuthHandler(authService, sm)
+
+	// Public routes with CSRF
 	r.Group(func(r chi.Router) {
 		r.Use(csrfMw)
 		r.Get("/", httphandlers.Home)
 		r.Get("/about", httphandlers.About)
 		r.Get("/contact", httphandlers.ContactForm)
 		r.Post("/contact", httphandlers.ContactSubmit)
+		r.Get("/register", authH.ShowRegister)
+		r.Post("/register", authH.Register)
+		r.Get("/login", authH.ShowLogin)
+		r.Post("/login", authH.Login)
+		r.Post("/logout", authH.Logout)
 	})
 
 	port := os.Getenv("PORT")

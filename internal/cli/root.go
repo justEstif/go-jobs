@@ -13,6 +13,7 @@ type Services struct {
 	Search      ports.JobSearchService
 	Application ports.ApplicationService
 	Session     ports.SessionRepository
+	Auth        ports.AuthService
 }
 
 // NewRootCmd builds the cobra root command with all sub-commands attached.
@@ -33,6 +34,9 @@ func NewRootCmd(services Services) *cobra.Command {
 	root.AddCommand(newNotesCmd(services))
 	root.AddCommand(newAppliedCmd(services))
 	root.AddCommand(newPipelineCmd(services))
+	root.AddCommand(newRegisterCmd(services))
+	root.AddCommand(newLoginCmd(services))
+	root.AddCommand(newLogoutCmd(services))
 
 	return root
 }

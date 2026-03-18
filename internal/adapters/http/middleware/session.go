@@ -2,10 +2,12 @@ package middleware
 
 import (
 	"context"
-	"encoding/gob"
 	"net/http"
+	"time"
 
-	"github.com/gorilla/sessions"
+	"github.com/alexedwards/scs/pgxstore"
+	"github.com/alexedwards/scs/v2"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type contextKey string
@@ -24,73 +26,62 @@ func UserIDFromContext(ctx context.Context) ([16]byte, bool) {
 	return id, ok
 }
 
-// Register [16]byte so gorilla/sessions can serialize uuid.UUID values
-// (uuid.UUID is [16]byte) via encoding/gob. Without this, storing a UUID in
-// a session silently fails at runtime when the cookie is decoded on the next
-// request.
-func init() {
-	gob.Register([16]byte{})
-}
+const sessionUserIDKey = "user_id"
 
-const (
-	SessionName   = "app_session"
-	SessionUserID = "user_id"
-)
-
-// SessionManager wraps a gorilla/sessions store.
+// SessionManager wraps alexedwards/scs, backed by a Postgres store.
+// It is also an http.Handler middleware (LoadAndSave) that must be applied to
+// all routes before any handler reads or writes session data.
 type SessionManager struct {
-	store sessions.Store
+	scs *scs.SessionManager
 }
 
-// NewSessionManager creates a SessionManager backed by a signed cookie store.
-// secret should come from SESSION_SECRET env var.
-// Set Secure: true in production (HTTPS only).
-func NewSessionManager(secret []byte) *SessionManager {
-	store := sessions.NewCookieStore(secret)
-	store.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   86400 * 7, // 7 days
-		HttpOnly: true,
-		// SameSite: Lax (not Strict) so the session cookie is sent on OAuth
-		// redirect callbacks from the provider back to your app. Strict would
-		// drop the cookie on those cross-site redirects, breaking the flow.
-		// The CSRF middleware uses SameSite: Strict separately for its own cookie.
-		SameSite: http.SameSiteLaxMode,
-		Secure:   false, // set true in production
-	}
-	return &SessionManager{store: store}
+// NewSessionManager creates a SessionManager backed by pgxstore.
+// pool is the application's pgxpool; secret is used to authenticate the
+// session cookie (SESSION_SECRET env var). The http_sessions table must
+// exist (migration 005).
+func NewSessionManager(pool *pgxpool.Pool, secret []byte) *SessionManager {
+	sm := scs.New()
+	sm.Store = pgxstore.NewWithConfig(pool, pgxstore.Config{
+		TableName:       "http_sessions",
+		CleanUpInterval: 5 * time.Minute,
+	})
+	sm.Lifetime = 7 * 24 * time.Hour
+	sm.Cookie.Name = "app_session"
+	sm.Cookie.HttpOnly = true
+	sm.Cookie.SameSite = http.SameSiteLaxMode
+	sm.Cookie.Secure = false // set true in production
+	return &SessionManager{scs: sm}
 }
 
-// SetUserSession stores the user ID (as [16]byte) in the session.
-func (sm *SessionManager) SetUserSession(w http.ResponseWriter, r *http.Request, userID [16]byte) error {
-	session, err := sm.store.Get(r, SessionName)
-	if err != nil {
+// LoadAndSave is the scs middleware that must wrap all routes.
+// It loads the session on every request and saves it after the handler returns.
+func (sm *SessionManager) LoadAndSave(next http.Handler) http.Handler {
+	return sm.scs.LoadAndSave(next)
+}
+
+// SetUserSession stores the user ID in the current session and rotates the
+// session token to prevent fixation attacks.
+func (sm *SessionManager) SetUserSession(r *http.Request, userID [16]byte) error {
+	if err := sm.scs.RenewToken(r.Context()); err != nil {
 		return err
 	}
-	session.Values[SessionUserID] = userID
-	return session.Save(r, w)
+	sm.scs.Put(r.Context(), sessionUserIDKey, userID[:])
+	return nil
 }
 
 // GetUserIDFromSession retrieves the user ID from the session.
-// Returns http.ErrNoCookie if no valid session exists.
+// Returns http.ErrNoCookie if the session does not contain a user ID.
 func (sm *SessionManager) GetUserIDFromSession(r *http.Request) ([16]byte, error) {
-	session, err := sm.store.Get(r, SessionName)
-	if err != nil {
-		return [16]byte{}, err
-	}
-	id, ok := session.Values[SessionUserID].([16]byte)
-	if !ok {
+	b := sm.scs.GetBytes(r.Context(), sessionUserIDKey)
+	if len(b) != 16 {
 		return [16]byte{}, http.ErrNoCookie
 	}
+	var id [16]byte
+	copy(id[:], b)
 	return id, nil
 }
 
-// ClearSession invalidates the session cookie.
-func (sm *SessionManager) ClearSession(w http.ResponseWriter, r *http.Request) error {
-	session, err := sm.store.Get(r, SessionName)
-	if err != nil {
-		return err
-	}
-	session.Options.MaxAge = -1
-	return session.Save(r, w)
+// ClearSession destroys the session entirely (used on logout).
+func (sm *SessionManager) ClearSession(r *http.Request) error {
+	return sm.scs.Destroy(r.Context())
 }

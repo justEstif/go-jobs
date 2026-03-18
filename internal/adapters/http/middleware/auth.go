@@ -1,8 +1,6 @@
 package middleware
 
-import (
-	"net/http"
-)
+import "net/http"
 
 // OptionalAuth loads the session user ID into the request context if a valid
 // session exists, but does not block unauthenticated requests. Use this on
