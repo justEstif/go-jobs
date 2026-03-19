@@ -70,6 +70,14 @@ func (s *SimplifySeeder) Seed(ctx context.Context) ([]domain.Company, error) {
 		}
 	}
 
+	// Merge static curated companies — skipped if already present from README sources.
+	for _, c := range staticCompanies {
+		key := string(c.ATSType) + ":" + c.BoardToken
+		if _, exists := seen[key]; !exists {
+			seen[key] = c
+		}
+	}
+
 	result := make([]domain.Company, 0, len(seen))
 	for _, c := range seen {
 		result = append(result, c)
