@@ -61,19 +61,33 @@ func (s *companyService) ListCompanies(ctx context.Context, userID domain.UserID
 	return visible, nil
 }
 
-// ListAllWithHiddenIDs returns all active companies and a set of hidden company IDs.
-func (s *companyService) ListAllWithHiddenIDs(ctx context.Context, userID domain.UserID) ([]domain.Company, map[domain.CompanyID]bool, error) {
-	all, err := s.companies.ListActive(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("list all companies: %w", err)
-	}
+// ListHiddenCompanies returns the full Company objects for companies the user
+// has hidden. Excludes companies with placeholder names (just the ATS provider
+// name, e.g. "greenhouse").
+func (s *companyService) ListHiddenCompanies(ctx context.Context, userID domain.UserID) ([]domain.Company, error) {
 	hiddenIDs, err := s.userCompanies.ListHidden(ctx, userID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("list hidden companies: %w", err)
+		return nil, fmt.Errorf("list hidden company IDs: %w", err)
 	}
+	if len(hiddenIDs) == 0 {
+		return nil, nil
+	}
+
+	all, err := s.companies.ListActive(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list active companies: %w", err)
+	}
+
 	hiddenSet := make(map[domain.CompanyID]bool, len(hiddenIDs))
 	for _, id := range hiddenIDs {
 		hiddenSet[id] = true
 	}
-	return all, hiddenSet, nil
+
+	var result []domain.Company
+	for _, c := range all {
+		if hiddenSet[c.ID] && !c.IsPlaceholderName() {
+			result = append(result, c)
+		}
+	}
+	return result, nil
 }

@@ -44,9 +44,12 @@ type UserRepository interface {
 	GetByEmail(ctx context.Context, email string) (domain.User, error)
 	GetByID(ctx context.Context, id domain.UserID) (domain.User, error)
 	Update(ctx context.Context, user domain.User) error
-	// TouchLastVisited updates LastVisitedAt to now for the given user.
-	// Called on each authenticated web session.
+	// UpdatePassword sets a new bcrypt password hash for the user.
+	UpdatePassword(ctx context.Context, userID domain.UserID, passwordHash string) error
 	TouchLastVisited(ctx context.Context, userID domain.UserID) error
+	// Delete permanently removes a user. All related data (sessions, user_jobs,
+	// user_companies, coach_cache) is cascade-deleted by the database.
+	Delete(ctx context.Context, userID domain.UserID) error
 }
 
 // SessionRepository manages opaque session tokens used for authentication.
@@ -84,6 +87,8 @@ type UserJobRepository interface {
 	GetUserJob(ctx context.Context, userID domain.UserID, jobID domain.JobID) (domain.UserJob, error)
 	ListByStatus(ctx context.Context, userID domain.UserID, status domain.ApplicationStatus) ([]domain.JobID, error)
 	ListAll(ctx context.Context, userID domain.UserID) ([]domain.UserJob, error)
+	// DeleteAll removes all pipeline state for a user (reset tracker).
+	DeleteAll(ctx context.Context, userID domain.UserID) error
 }
 
 // ScrapeRunRepository persists scrape run records.

@@ -33,6 +33,17 @@ UPDATE users
 SET last_visited_at = NOW()
 WHERE id = $1;
 
+-- name: UpdatePassword :exec
+UPDATE users
+SET password_hash = $2
+WHERE id = $1;
+
+-- name: DeleteUser :exec
+DELETE FROM users WHERE id = $1;
+
+-- name: DeleteUserJobs :exec
+DELETE FROM user_jobs WHERE user_id = $1;
+
 -- ============================================================
 -- Sessions
 -- ============================================================

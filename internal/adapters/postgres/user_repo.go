@@ -67,6 +67,27 @@ func (r *UserRepo) Update(ctx context.Context, user domain.User) error {
 	return nil
 }
 
+// UpdatePassword sets a new bcrypt password hash for the user.
+func (r *UserRepo) UpdatePassword(ctx context.Context, userID domain.UserID, passwordHash string) error {
+	err := r.q.UpdatePassword(ctx, queries.UpdatePasswordParams{
+		ID:           uuidToPg(userID),
+		PasswordHash: passwordHash,
+	})
+	if err != nil {
+		return fmt.Errorf("update password for user %s: %w", userID, err)
+	}
+	return nil
+}
+
+// Delete permanently removes a user from the database.
+func (r *UserRepo) Delete(ctx context.Context, userID domain.UserID) error {
+	err := r.q.DeleteUser(ctx, uuidToPg(userID))
+	if err != nil {
+		return fmt.Errorf("delete user %s: %w", userID, err)
+	}
+	return nil
+}
+
 // TouchLastVisited updates last_visited_at to NOW() for the given user.
 func (r *UserRepo) TouchLastVisited(ctx context.Context, userID domain.UserID) error {
 	err := r.q.TouchUserLastVisited(ctx, uuidToPg(userID))

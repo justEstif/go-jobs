@@ -153,7 +153,7 @@ func setupLocalServices(ctx context.Context) (cli.Services, error) {
 	searchService := services.NewJobSearchService(jobRepo)
 	applicationService := services.NewApplicationService(userJobRepo, jobRepo)
 	authService := services.NewAuthService(userRepo, userRepo)
-	userService := services.NewUserService(userRepo, encryptFn)
+	userService := services.NewUserService(userRepo, userJobRepo, encryptFn)
 	_ = services.NewCompanyService(companyRepo, userCompanyRepo) // not used in CLI
 	coachCacheRepo := postgres.NewCoachCacheRepo(postgres.DB)
 	coachService := services.NewJobCoachService(userRepo, jobRepo, companyRepo, coachCacheRepo, llm.NewClient, decryptFn)

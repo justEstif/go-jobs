@@ -68,6 +68,13 @@ type UserService interface {
 	GetByID(ctx context.Context, id domain.UserID) (domain.User, error)
 	// TouchLastVisited updates LastVisitedAt to now. Called on each authenticated session.
 	TouchLastVisited(ctx context.Context, userID domain.UserID) error
+	// ChangePassword verifies the current password and sets a new one.
+	ChangePassword(ctx context.Context, userID domain.UserID, currentPassword, newPassword string) error
+	// ResetTracker deletes all pipeline state (user_jobs) for the user.
+	ResetTracker(ctx context.Context, userID domain.UserID) error
+	// DeleteAccount permanently removes the user and all associated data.
+	// Requires the current password for confirmation.
+	DeleteAccount(ctx context.Context, userID domain.UserID, password string) error
 }
 
 // CompanyService manages per-user company visibility.
@@ -77,9 +84,9 @@ type CompanyService interface {
 	// ListCompanies returns all active companies excluding those hidden by the user.
 	// Used for job browse filtering.
 	ListCompanies(ctx context.Context, userID domain.UserID) ([]domain.Company, error)
-	// ListAllWithHiddenIDs returns all active companies and a set of company IDs
-	// the user has hidden. Used to render the /companies management page.
-	ListAllWithHiddenIDs(ctx context.Context, userID domain.UserID) (companies []domain.Company, hiddenIDs map[domain.CompanyID]bool, err error)
+	// ListHiddenCompanies returns the full Company objects for companies the user
+	// has hidden. Used to render the blocked-companies list on the settings page.
+	ListHiddenCompanies(ctx context.Context, userID domain.UserID) ([]domain.Company, error)
 }
 
 // JobCoachService provides LLM-powered resume analysis and optimization.

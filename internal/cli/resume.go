@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
+
+	"github.com/justestif/go-jobs/internal/core/domain"
 )
 
 // resolveUserID reads the stored CLI token and resolves it to a user ID.
@@ -71,12 +73,15 @@ Examples:
 			if resume == "" {
 				return fmt.Errorf("resume is empty")
 			}
+			if len(resume) > domain.MaxResumeLength {
+				return fmt.Errorf("resume too long: %d characters exceeds maximum of %d", len(resume), domain.MaxResumeLength)
+			}
 
 			if err := services.User.SetResume(cmd.Context(), userID, resume); err != nil {
 				return err
 			}
 
-			fmt.Printf("Resume saved (%d bytes)\n", len(resume))
+			fmt.Printf("Resume saved (%d chars)\n", len(resume))
 			return nil
 		},
 	}

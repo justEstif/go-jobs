@@ -7,39 +7,20 @@ import (
 	"github.com/justestif/go-jobs/internal/core/domain"
 )
 
-// SettingsPage renders the user settings page with resume and LLM provider config.
-templ SettingsPage(user domain.User, saved string, loggedIn bool, csrfToken string) {
-	@Layout("Settings", loggedIn, csrfToken) {
+// CoachPage renders the unified Job Coach page with resume config, LLM provider
+// config, and case study generator. All three sections live on a single page
+// since they are all inputs/tools for the coaching workflow.
+templ CoachPage(user domain.User, saved string, caseStudyDesc string, caseStudyResult string, loggedIn bool, csrfToken string) {
+	@Layout("Coach", loggedIn, csrfToken) {
 		<div class="max-w-2xl">
-			<h1 class="text-xl font-semibold mb-6">Settings</h1>
+			<h1 class="text-xl font-semibold mb-1">Job Coach</h1>
+			<p class="text-sm text-base-content/50 mb-6">
+				Configure your resume and AI provider, then generate case studies — all in one place.
+			</p>
 
 			if saved != "" {
 				<div class="mb-4 text-sm text-success">{ saved }</div>
 			}
-
-			<!-- Resume -->
-			<section class="bg-base-100 border border-base-200 rounded-sm px-5 py-4 mb-6">
-				<h2 class="text-sm font-medium uppercase tracking-wide text-base-content/50 mb-1">Resume</h2>
-				<p class="text-xs text-base-content/40 mb-3">
-					Paste your resume as plain text or markdown. Job Coach uses this to analyze your fit for specific roles.
-				</p>
-				<form method="POST" action="/settings/resume">
-					<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
-					<textarea
-						name="resume"
-						class="textarea textarea-bordered w-full h-48 text-sm font-mono leading-relaxed"
-						placeholder="# Jane Doe&#10;jane@example.com | github.com/janedoe&#10;&#10;## Experience&#10;..."
-					>{ user.Resume }</textarea>
-					<div class="mt-2 flex items-center gap-3">
-						<button type="submit" class="btn btn-sm btn-primary">Save resume</button>
-						if user.Resume != "" {
-							<span class="text-xs text-base-content/40">
-								{ resumeWordCount(user.Resume) } words
-							</span>
-						}
-					</div>
-				</form>
-			</section>
 
 			<!-- LLM Provider -->
 			<section class="bg-base-100 border border-base-200 rounded-sm px-5 py-4 mb-6">
@@ -47,7 +28,7 @@ templ SettingsPage(user domain.User, saved string, loggedIn bool, csrfToken stri
 				<p class="text-xs text-base-content/40 mb-3">
 					Configure the AI model for Job Coach. Ollama runs locally — free and private. Cloud providers need an API key.
 				</p>
-				<form method="POST" action="/settings/llm">
+				<form method="POST" action="/coach/llm">
 					<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
 
 					<div class="grid gap-3 max-w-xs">
@@ -104,6 +85,64 @@ templ SettingsPage(user domain.User, saved string, loggedIn bool, csrfToken stri
 					</div>
 				</form>
 			</section>
+
+			<!-- Resume -->
+			<section class="bg-base-100 border border-base-200 rounded-sm px-5 py-4 mb-6">
+				<h2 class="text-sm font-medium uppercase tracking-wide text-base-content/50 mb-1">Resume</h2>
+				<p class="text-xs text-base-content/40 mb-3">
+					Paste your resume as plain text or markdown. Job Coach uses this to analyze your fit for specific roles.
+				</p>
+				<form method="POST" action="/coach/resume">
+					<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+					<textarea
+						name="resume"
+						maxlength={ fmt.Sprintf("%d", domain.MaxResumeLength) }
+						class="textarea textarea-bordered w-full h-48 text-sm font-mono leading-relaxed"
+						placeholder="# Jane Doe&#10;jane@example.com | github.com/janedoe&#10;&#10;## Experience&#10;..."
+						oninput="this.closest('form').querySelector('[data-char-count]').textContent = this.value.length.toLocaleString()"
+					>{ user.Resume }</textarea>
+					<div class="mt-2 flex items-center gap-3">
+						<button type="submit" class="btn btn-sm btn-primary">Save resume</button>
+						<span class="text-xs text-base-content/40">
+							<span data-char-count>{ fmt.Sprintf("%d", len(user.Resume)) }</span>
+							/ { fmt.Sprintf("%s", formatMaxResumeLength()) } chars
+							if user.Resume != "" {
+								&middot; { resumeWordCount(user.Resume) } words
+							}
+						</span>
+					</div>
+				</form>
+			</section>
+
+			<!-- Case Study Generator -->
+			<section class="bg-base-100 border border-base-200 rounded-sm px-5 py-4 mb-6">
+				<h2 class="text-sm font-medium uppercase tracking-wide text-base-content/50 mb-1">Case Study Generator</h2>
+				<p class="text-xs text-base-content/40 mb-3">
+					Expand a project description or resume bullet into a structured portfolio case study.
+				</p>
+				<form method="POST" action="/coach/case-study">
+					<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+					<label class="label py-1"><span class="label-text text-xs font-medium">Project description</span></label>
+					<textarea
+						name="description"
+						class="textarea textarea-bordered w-full h-32 text-sm leading-relaxed"
+						placeholder="Describe a project you worked on — what you built, your role, the tech, and any results. The more detail, the better the output."
+					>{ caseStudyDesc }</textarea>
+					<div class="mt-3">
+						<button type="submit" class="btn btn-sm btn-primary">Generate case study</button>
+					</div>
+				</form>
+			</section>
+
+			<!-- Case Study Result -->
+			if caseStudyResult != "" {
+				<section class="bg-base-100 border border-base-200 rounded-sm px-5 py-4 mb-6">
+					<h2 class="text-sm font-medium uppercase tracking-wide text-base-content/50 mb-3">Generated Case Study</h2>
+					<div class="prose prose-sm max-w-none text-base-content/80">
+						@templ.Raw(renderJobDescriptionHTML(caseStudyResult))
+					</div>
+				</section>
+			}
 		</div>
 	}
 }
@@ -114,6 +153,11 @@ func llmKeyPlaceholder(user domain.User) string {
 		return "key configured"
 	}
 	return "sk-... (not needed for Ollama)"
+}
+
+// formatMaxResumeLength returns the max resume length as a formatted string (e.g. "10,000").
+func formatMaxResumeLength() string {
+	return fmt.Sprintf("%d,%03d", domain.MaxResumeLength/1000, domain.MaxResumeLength%1000)
 }
 
 // resumeWordCount returns a word count string for the resume.
@@ -152,44 +196,4 @@ templ CoachResultPanel(result string, modelUsed string, jobID string, csrfToken 
 			<p class="text-xs text-base-content/30 mt-4 pt-3 border-t border-base-200">{ modelUsed }</p>
 		}
 	</div>
-}
-
-// CaseStudyPage renders the case study generation page.
-// description is preserved across submissions so the user can iterate.
-// result is the generated case study (empty on first load).
-templ CaseStudyPage(description string, result string, loggedIn bool, csrfToken string) {
-	@Layout("Case Study", loggedIn, csrfToken) {
-		<div class="max-w-2xl">
-			<h1 class="text-xl font-semibold mb-2">Case Study Generator</h1>
-			<p class="text-sm text-base-content/50 mb-6">
-				Expand a project description or resume bullet into a structured portfolio case study.
-			</p>
-
-			<!-- Input form -->
-			<section class="bg-base-100 border border-base-200 rounded-sm px-5 py-4 mb-6">
-				<form method="POST" action="/case-study">
-					<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
-					<label class="label py-1"><span class="label-text text-xs font-medium">Project description</span></label>
-					<textarea
-						name="description"
-						class="textarea textarea-bordered w-full h-32 text-sm leading-relaxed"
-						placeholder="Describe a project you worked on — what you built, your role, the tech, and any results. The more detail, the better the output."
-					>{ description }</textarea>
-					<div class="mt-3">
-						<button type="submit" class="btn btn-sm btn-primary">Generate case study</button>
-					</div>
-				</form>
-			</section>
-
-			<!-- Result -->
-			if result != "" {
-				<section class="bg-base-100 border border-base-200 rounded-sm px-5 py-4">
-					<h2 class="text-sm font-medium uppercase tracking-wide text-base-content/50 mb-3">Generated Case Study</h2>
-					<div class="prose prose-sm max-w-none text-base-content/80">
-						@templ.Raw(renderJobDescriptionHTML(result))
-					</div>
-				</section>
-			}
-		</div>
-	}
 }

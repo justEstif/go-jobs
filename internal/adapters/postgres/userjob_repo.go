@@ -73,6 +73,15 @@ func (r *UserJobRepo) ListByStatus(ctx context.Context, userID domain.UserID, st
 	return ids, nil
 }
 
+// DeleteAll removes all pipeline state for a user.
+func (r *UserJobRepo) DeleteAll(ctx context.Context, userID domain.UserID) error {
+	err := r.q.DeleteUserJobs(ctx, uuidToPg(userID))
+	if err != nil {
+		return fmt.Errorf("delete all user_jobs for user %s: %w", userID, err)
+	}
+	return nil
+}
+
 // ListAll returns all UserJob records for a user.
 func (r *UserJobRepo) ListAll(ctx context.Context, userID domain.UserID) ([]domain.UserJob, error) {
 	rows, err := r.q.ListAllUserJobs(ctx, uuidToPg(userID))

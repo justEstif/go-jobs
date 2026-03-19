@@ -73,6 +73,24 @@ func (q *Queries) DeleteSession(ctx context.Context, token string) error {
 	return err
 }
 
+const deleteUser = `-- name: DeleteUser :exec
+DELETE FROM users WHERE id = $1
+`
+
+func (q *Queries) DeleteUser(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUser, id)
+	return err
+}
+
+const deleteUserJobs = `-- name: DeleteUserJobs :exec
+DELETE FROM user_jobs WHERE user_id = $1
+`
+
+func (q *Queries) DeleteUserJobs(ctx context.Context, userID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUserJobs, userID)
+	return err
+}
+
 const getCoachCache = `-- name: GetCoachCache :one
 
 SELECT user_id, job_id, kind, result, model_used, created_at FROM coach_cache
@@ -802,6 +820,22 @@ WHERE id = $1
 
 func (q *Queries) TouchUserLastVisited(ctx context.Context, id pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, touchUserLastVisited, id)
+	return err
+}
+
+const updatePassword = `-- name: UpdatePassword :exec
+UPDATE users
+SET password_hash = $2
+WHERE id = $1
+`
+
+type UpdatePasswordParams struct {
+	ID           pgtype.UUID `json:"id"`
+	PasswordHash string      `json:"password_hash"`
+}
+
+func (q *Queries) UpdatePassword(ctx context.Context, arg UpdatePasswordParams) error {
+	_, err := q.db.Exec(ctx, updatePassword, arg.ID, arg.PasswordHash)
 	return err
 }
 

@@ -2,57 +2,186 @@ package components
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 
 	"github.com/justestif/go-jobs/internal/core/domain"
 )
 
-// CompaniesPage renders the companies management page with hide/show toggles.
-// csrfToken is used for both the navbar logout form and the hide/show toggle forms.
-templ CompaniesPage(companies []domain.Company, hidden map[domain.CompanyID]bool, csrfToken string) {
-	@Layout("Companies", true, csrfToken) {
-		<div class="max-w-3xl">
-			<div class="flex items-center justify-between mb-5">
-				<h1 class="text-xl font-semibold">Companies</h1>
-				<span class="text-xs text-base-content/40">{ fmt.Sprintf("%d companies", len(companies)) }</span>
-			</div>
-			<p class="text-sm text-base-content/60 mb-4">Hidden companies are excluded from job listings.</p>
-			if len(companies) == 0 {
-				<div class="text-center py-16 text-base-content/40 text-sm">
-					No companies yet. Run the scraper to seed companies.
-				</div>
-			} else {
-				<div class="divide-y divide-base-200 border border-base-200 rounded-sm">
-					for _, c := range companies {
-						<div class="flex items-center justify-between px-4 py-2.5 bg-base-100">
-							<div class="min-w-0">
-								<p class="text-sm font-medium text-base-content">{ c.Name }</p>
-								<p class="text-xs text-base-content/40 mt-0.5">{ string(c.ATSType) }</p>
-							</div>
-							<div id={ "toggle-" + c.ID.String() }>
-								@CompanyTogglePartial(c.ID, hidden[c.ID], csrfToken)
-							</div>
-						</div>
-					}
-				</div>
+// SettingsPage renders the account settings page with blocked companies list
+// and account management (change password, reset tracker, delete account).
+templ SettingsPage(blocked []domain.Company, saved string, errMsg string, csrfToken string) {
+	@Layout("Settings", true, csrfToken) {
+		<div class="max-w-2xl">
+			<h1 class="text-xl font-semibold mb-6">Settings</h1>
+
+			if saved != "" {
+				<div class="mb-4 text-sm text-success">{ saved }</div>
 			}
+			if errMsg != "" {
+				<div class="mb-4 text-sm text-error">{ errMsg }</div>
+			}
+
+			<!-- Blocked companies -->
+			<section class="bg-base-100 border border-base-200 rounded-sm px-5 py-4 mb-6">
+				<div class="flex items-center justify-between mb-1">
+					<h2 class="text-sm font-medium uppercase tracking-wide text-base-content/50">Blocked Companies</h2>
+					<span class="text-xs text-base-content/40">{ fmt.Sprintf("%d blocked", len(blocked)) }</span>
+				</div>
+				<p class="text-xs text-base-content/40 mb-3">
+					Jobs from blocked companies are hidden from your listings. Unblock from here, or block from any job detail page.
+				</p>
+				if len(blocked) == 0 {
+					<p class="text-sm text-base-content/40 py-4 text-center">No blocked companies.</p>
+				} else {
+					<input
+						type="text"
+						placeholder="Search blocked companies..."
+						class="input input-bordered input-sm w-full mb-3"
+						oninput="filterBlocked(this.value)"
+					/>
+					<div id="blocked-list" class="divide-y divide-base-200 border border-base-200 rounded-sm max-h-80 overflow-y-auto">
+						for _, c := range blocked {
+							<div class="flex items-center justify-between px-3 py-2" data-company-name={ lowerName(c.Name) }>
+								<div class="min-w-0">
+									<p class="text-sm font-medium text-base-content">{ c.Name }</p>
+									<p class="text-xs text-base-content/40">{ string(c.ATSType) }</p>
+								</div>
+								<form
+									method="POST"
+									action={ "/companies/" + c.ID.String() + "/show?from=settings" }
+									hx-post={ "/companies/" + c.ID.String() + "/show?from=settings" }
+									hx-target="closest div[data-company-name]"
+									hx-swap="outerHTML"
+									hx-disabled-elt="button"
+								>
+									<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+									<button type="submit" class="btn btn-xs btn-ghost text-error">Unblock</button>
+								</form>
+							</div>
+						}
+					</div>
+					<script>
+						function filterBlocked(query) {
+							const q = query.toLowerCase();
+							document.querySelectorAll('#blocked-list [data-company-name]').forEach(el => {
+								el.style.display = el.dataset.companyName.includes(q) ? '' : 'none';
+							});
+						}
+					</script>
+				}
+			</section>
+
+			<!-- Change password -->
+			<section class="bg-base-100 border border-base-200 rounded-sm px-5 py-4 mb-6">
+				<h2 class="text-sm font-medium uppercase tracking-wide text-base-content/50 mb-1">Change Password</h2>
+				<form method="POST" action="/settings/password">
+					<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+					<div class="grid gap-3 max-w-xs">
+						<div class="form-control">
+							<label class="label py-1"><span class="label-text text-xs font-medium">Current password</span></label>
+							<input type="password" name="current_password" required class="input input-bordered input-sm" autocomplete="current-password"/>
+						</div>
+						<div class="form-control">
+							<label class="label py-1"><span class="label-text text-xs font-medium">New password</span></label>
+							<input type="password" name="new_password" required minlength="8" class="input input-bordered input-sm" autocomplete="new-password"/>
+							<span class="text-xs text-base-content/40 mt-1">Minimum 8 characters</span>
+						</div>
+						<div class="form-control">
+							<label class="label py-1"><span class="label-text text-xs font-medium">Confirm new password</span></label>
+							<input type="password" name="confirm_password" required minlength="8" class="input input-bordered input-sm" autocomplete="new-password"/>
+						</div>
+					</div>
+					<div class="mt-4">
+						<button type="submit" class="btn btn-sm btn-primary">Update password</button>
+					</div>
+				</form>
+			</section>
+
+			<!-- Danger zone -->
+			<section class="bg-base-100 border border-error/20 rounded-sm px-5 py-4 mb-6">
+				<h2 class="text-sm font-medium uppercase tracking-wide text-error/60 mb-3">Danger Zone</h2>
+
+				<!-- Reset tracker -->
+				<div class="flex items-center justify-between py-3 border-b border-base-200">
+					<div>
+						<p class="text-sm font-medium text-base-content">Reset pipeline tracker</p>
+						<p class="text-xs text-base-content/40">Remove all tracked jobs, statuses, and notes. This cannot be undone.</p>
+					</div>
+					<form method="POST" action="/settings/reset-tracker" onsubmit="return confirm('Reset your entire pipeline tracker? All job statuses and notes will be permanently deleted.')">
+						<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+						<button type="submit" class="btn btn-sm btn-outline btn-error">Reset tracker</button>
+					</form>
+				</div>
+
+				<!-- Delete account -->
+				<div class="flex items-start justify-between py-3">
+					<div>
+						<p class="text-sm font-medium text-base-content">Delete account</p>
+						<p class="text-xs text-base-content/40">Permanently delete your account and all associated data. This cannot be undone.</p>
+					</div>
+					<button type="button" class="btn btn-sm btn-error" onclick="document.getElementById('delete-modal').showModal()">Delete account</button>
+				</div>
+
+				<!-- Delete confirmation modal -->
+				<dialog id="delete-modal" class="modal">
+					<div class="modal-box max-w-sm">
+						<h3 class="text-lg font-semibold text-error">Delete your account?</h3>
+						<p class="text-sm text-base-content/60 mt-2">
+							This will permanently delete your account, pipeline, blocked companies, coach cache, and all settings. Enter your password to confirm.
+						</p>
+						<form method="POST" action="/settings/delete-account" class="mt-4">
+							<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+							<div class="form-control mb-4">
+								<input type="password" name="password" required placeholder="Your password" class="input input-bordered input-sm" autocomplete="current-password"/>
+							</div>
+							<div class="flex gap-2 justify-end">
+								<button type="button" class="btn btn-sm btn-ghost" onclick="document.getElementById('delete-modal').close()">Cancel</button>
+								<button type="submit" class="btn btn-sm btn-error">Delete permanently</button>
+							</div>
+						</form>
+					</div>
+					<form method="dialog" class="modal-backdrop"><button>close</button></form>
+				</dialog>
+			</section>
 		</div>
 	}
 }
 
-// CompanyTogglePartial renders a hide/show toggle button for a company.
-// It is also returned as an htmx partial swap response.
-templ CompanyTogglePartial(companyID uuid.UUID, isHidden bool, csrfToken string) {
+// HideCompanyPartial renders a hide/show company toggle button.
+// Used on job detail pages and as htmx swap target.
+templ HideCompanyPartial(companyID uuid.UUID, isHidden bool, csrfToken string) {
 	if isHidden {
-		<form method="POST" action={ "/companies/" + companyID.String() + "/show" } hx-post={ "/companies/" + companyID.String() + "/show" } hx-target={ "#toggle-" + companyID.String() } hx-swap="innerHTML" hx-disabled-elt="button">
+		<form
+			method="POST"
+			action={ "/companies/" + companyID.String() + "/show" }
+			hx-post={ "/companies/" + companyID.String() + "/show" }
+			hx-target={ "#hide-company-" + companyID.String() }
+			hx-swap="innerHTML"
+			hx-disabled-elt="button"
+			class="inline"
+		>
 			<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
-			<button type="submit" class="btn btn-xs btn-ghost text-base-content/50">Show</button>
+			<button type="submit" class="btn btn-xs btn-ghost text-error/70">Blocked</button>
 		</form>
 	} else {
-		<form method="POST" action={ "/companies/" + companyID.String() + "/hide" } hx-post={ "/companies/" + companyID.String() + "/hide" } hx-target={ "#toggle-" + companyID.String() } hx-swap="innerHTML" hx-disabled-elt="button">
+		<form
+			method="POST"
+			action={ "/companies/" + companyID.String() + "/hide" }
+			hx-post={ "/companies/" + companyID.String() + "/hide" }
+			hx-target={ "#hide-company-" + companyID.String() }
+			hx-swap="innerHTML"
+			hx-disabled-elt="button"
+			class="inline"
+		>
 			<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
-			<button type="submit" class="btn btn-xs btn-ghost">Hide</button>
+			<button type="submit" class="btn btn-xs btn-ghost text-base-content/40">Hide company</button>
 		</form>
 	}
+}
+
+// lowerName returns a lowercased version of a name for client-side search filtering.
+func lowerName(name string) string {
+	return strings.ToLower(name)
 }

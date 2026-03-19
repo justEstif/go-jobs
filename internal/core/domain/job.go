@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,6 +20,13 @@ const (
 	ATSAshby      ATSType = "ashby"
 	ATSCustom     ATSType = "custom"
 )
+
+// IsPlaceholderName returns true if the company name is just the ATS provider
+// name (e.g. "greenhouse", "lever"). These are scraper artifacts, not real names.
+func (c Company) IsPlaceholderName() bool {
+	lower := strings.ToLower(strings.TrimSpace(c.Name))
+	return lower == "" || lower == string(ATSGreenhouse) || lower == string(ATSLever) || lower == string(ATSAshby) || lower == string(ATSCustom)
+}
 
 // ScrapeType controls how a company's job board is fetched.
 type ScrapeType string
@@ -82,6 +90,10 @@ const (
 	EnrichmentRules EnrichmentSource = "rules"
 	EnrichmentLLM   EnrichmentSource = "llm"
 )
+
+// MaxResumeLength is the maximum allowed length (in characters) for a user's
+// stored resume. Prevents abuse and keeps LLM prompts within context limits.
+const MaxResumeLength = 10_000
 
 // LLMProvider identifies which LLM provider a user has configured.
 type LLMProvider string
