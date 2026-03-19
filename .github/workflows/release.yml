@@ -38,17 +38,20 @@ jobs:
           go-version-file: go.mod
 
       - name: Install Tailwind CSS
+        if: matrix.goos != 'windows'
         run: |
           curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/download/v4.2.1/tailwindcss-linux-x64
           chmod +x tailwindcss-linux-x64
           mv tailwindcss-linux-x64 tailwindcss
 
       - name: Install DaisyUI
+        if: matrix.goos != 'windows'
         run: |
           curl -sLO https://github.com/saadeghi/daisyui/releases/download/v5.5.19/daisyui.mjs
           curl -sLO https://github.com/saadeghi/daisyui/releases/download/v5.5.19/daisyui-theme.mjs
 
       - name: Build CSS
+        if: matrix.goos != 'windows'
         run: ./tailwindcss -i styles/input.css -o web/static/css/tailwind.css --minify
 
       - name: Generate templ files
