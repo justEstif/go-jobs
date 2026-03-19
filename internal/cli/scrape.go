@@ -23,6 +23,15 @@ func newScrapeCmd(services Services) *cobra.Command {
 		interval time.Duration
 	)
 
+	// defaultInterval reads SCRAPE_INTERVAL from the environment so the Procfile
+	// doesn't need shell variable expansion. Falls back to 6h if unset or invalid.
+	defaultInterval := 6 * time.Hour
+	if v := os.Getenv("SCRAPE_INTERVAL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			defaultInterval = d
+		}
+	}
+
 	cmd := &cobra.Command{
 		Use:   "scrape",
 		Short: "Scrape job postings from ATS platforms",
@@ -87,6 +96,6 @@ Pass --loop to run continuously as a daemon (used by the Dokku worker process).`
 
 	cmd.Flags().StringVar(&source, "source", "", "Scrape a single ATS source (greenhouse|lever|ashby)")
 	cmd.Flags().BoolVar(&loop, "loop", false, "Run continuously, re-scraping on --interval")
-	cmd.Flags().DurationVar(&interval, "interval", 6*time.Hour, "Interval between scrape runs (used with --loop)")
+	cmd.Flags().DurationVar(&interval, "interval", defaultInterval, "Interval between scrape runs (used with --loop); also reads SCRAPE_INTERVAL env")
 	return cmd
 }
