@@ -102,7 +102,7 @@ jobs:
 
           if [ "$OS" = "windows" ]; then
             # Windows: only CLI
-            cd "$OUTDIR" && zip "../../${ARCHIVE}.zip" ./jobs* && cd -
+            cd "$OUTDIR" && zip "../../${ARCHIVE}.zip" ./* && cd -
           else
             # Unix: both CLI and server
             tar -czf "${ARCHIVE}.tar.gz" -C "$OUTDIR" .
