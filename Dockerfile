@@ -55,5 +55,4 @@ COPY --from=builder /app/migrations ./migrations
 
 EXPOSE 3000
 
-ENTRYPOINT ["./jobs"]
-CMD ["serve"]
+CMD ["./jobs", "serve"]
