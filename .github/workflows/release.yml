@@ -37,6 +37,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Build CSS
+        run: ./tailwindcss -i styles/input.css -o static/css/tailwind.css --minify
+
       - name: Generate templ files
         run: |
           go install github.com/a-h/templ/cmd/templ@latest
