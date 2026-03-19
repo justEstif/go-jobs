@@ -35,6 +35,23 @@ It pulls postings from ATS platforms like Greenhouse, Lever, and Ashby, stores t
 - `docs/ARCHITECTURE.md` — system design and data model
 - `docs/interfaces.md` — domain types and ports
 
+## CLI
+
+Install the CLI via npm and use it against the live app or your own instance:
+
+```bash
+npm install -g @justestif/go-jobs
+jobs search --query "backend go"
+jobs login
+jobs pipeline
+```
+
+The CLI targets `http://127.0.0.1:3000` by default. To use the hosted app:
+
+```bash
+jobs --base-url https://jobs.estifanos.cc <command>
+```
+
 ## Self-hosting
 
 ```bash

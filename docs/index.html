@@ -136,11 +136,8 @@
       <header class="navbar">
         <a href="#top"><strong>go-jobs</strong></a>
         <nav>
-          <a href="https://github.com/justEstif/go-jobs/blob/main/README.md">README</a>
-          <a href="https://github.com/justEstif/go-jobs/blob/main/docs/ARCHITECTURE.md">Architecture</a>
-          <a href="https://github.com/justEstif/go-jobs/blob/main/docs/interfaces.md">Interfaces</a>
-          <a href="https://github.com/justEstif/go-jobs/blob/main/docs/self-hosting.md">Self-hosting</a>
-          <a href="https://github.com/justEstif/go-jobs/blob/main/README.md">GitHub</a>
+          <a href="https://github.com/justEstif/go-jobs">GitHub</a>
+          <a href="https://jobs.estifanos.cc/">Live Demo</a>
         </nav>
       </header>
 
@@ -166,54 +163,21 @@
           </div>
         </section>
 
-        <section class="stagger">
-          <h2>What it does</h2>
-          <div class="grid-two">
-            <article class="box feature-box">
-              <h3>Aggregate from startup ATS sources</h3>
-              <p>
-                Scrapes jobs from Greenhouse, Lever, and Ashby, stores everything in your
-                own PostgreSQL database, and keeps postings fresh via scheduled runs.
-              </p>
-            </article>
-            <article class="box feature-box">
-              <h3>Enrich jobs for real filtering</h3>
-              <p>
-                Classifies role type, seniority, remote policy, location, and tech stack,
-                so filtering is meaningful instead of keyword guessing.
-              </p>
-            </article>
-            <article class="box feature-box">
-              <h3>Track applications in one place</h3>
-              <p>
-                Move jobs through interested, applied, interviewing, offer, rejected, and
-                withdrawn states from either the UI or terminal.
-              </p>
-            </article>
-            <article class="box feature-box">
-              <h3>Own your stack and uptime</h3>
-              <p>
-                You host it. You run the schedule. You keep your data and workflow without
-                depending on a third-party board.
-              </p>
-            </article>
-          </div>
-        </section>
 
         <section class="stagger">
-          <h2>Architecture at a glance</h2>
+          <h2>Try it live</h2>
+          <p><a href="https://jobs.estifanos.cc/">jobs.estifanos.cc</a></p>
+        </section>
+
+        <section class="stagger quickstart">
+          <h2>CLI</h2>
           <div class="box">
-            <ul>
-              <li>Core-first hexagonal structure: ports and services in <code>internal/core</code></li>
-              <li>Driven adapters for Postgres, ATS scrapers, enrichment, and scheduler</li>
-              <li>Driving adapters for HTTP handlers, middleware, CLI commands, and jobs loop</li>
-              <li>Single composition root in <code>cmd/jobs/main.go</code></li>
-            </ul>
-            <p>
-              Read the full technical docs in
-              <a href="https://github.com/justEstif/go-jobs/blob/main/docs/ARCHITECTURE.md">ARCHITECTURE.md</a>
-              and <a href="https://github.com/justEstif/go-jobs/blob/main/docs/interfaces.md">interfaces.md</a>.
-            </p>
+            <p>Install the CLI from npm and use it against the live app or your own instance:</p>
+            <pre><code>npm install -g @justestif/go-jobs
+jobs search --query "backend go"
+jobs login
+jobs pipeline</code></pre>
+            <p>To target the hosted app: <code>jobs --base-url https://jobs.estifanos.cc &lt;command&gt;</code></p>
           </div>
         </section>
 
@@ -222,17 +186,6 @@
           <div class="box">
             <pre><code>docker pull ghcr.io/justestif/go-jobs:latest</code></pre>
             <p>Then run with Docker Compose or plain Docker. See the <a href="https://github.com/justEstif/go-jobs/blob/main/docs/self-hosting.md">self-hosting guide</a> for env vars and full setup.</p>
-          </div>
-        </section>
-
-        <section class="stagger quickstart">
-          <h2>Local development</h2>
-          <div class="box">
-            <pre><code>mise install
-docker-compose up -d
-mise run setup
-mise run dev</code></pre>
-            <p>Then open <code>http://localhost:3000</code>.</p>
           </div>
         </section>
 
