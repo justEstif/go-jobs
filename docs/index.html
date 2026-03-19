@@ -6,7 +6,7 @@
     <title>go-jobs</title>
     <meta
       name="description"
-      content="go-jobs is a self-hosted job aggregator for startup ATS platforms, with enrichment, filters, web UI, and CLI tracking."
+      content="Self-hosted job aggregator with search, filters, pipeline tracking, AI resume coach, and a CLI. Pulls from 1000+ companies on Greenhouse, Lever, and Ashby."
     />
     <link rel="stylesheet" href="https://unpkg.com/missing.css@1.2.0" />
     <style>
@@ -77,10 +77,6 @@
         gap: 0.9rem;
       }
 
-      .feature-box {
-        min-height: 100%;
-      }
-
       .box {
         background: color-mix(in oklab, white 90%, var(--brand-soft));
         border-color: color-mix(in oklab, var(--brand-ink) 22%, white);
@@ -100,8 +96,37 @@
         font-size: 0.93rem;
       }
 
-      .docs-list a {
+      .prompt-block {
+        background: oklch(18% 0.01 255);
+        color: oklch(88% 0.01 255);
+        border-radius: 6px;
+        padding: 1rem 1.2rem;
+        font-size: 0.88rem;
+        line-height: 1.6;
+        overflow-x: auto;
+      }
+
+      .prompt-block .comment {
+        color: oklch(55% 0.01 255);
+      }
+
+      .prompt-block .prompt {
+        color: oklch(70% 0.12 160);
+      }
+
+      .prompt-block .output {
+        color: oklch(72% 0.01 255);
+      }
+
+      .mcp-badge {
+        display: inline-block;
+        background: color-mix(in oklab, var(--brand-accent) 15%, white);
+        border: 1px solid color-mix(in oklab, var(--brand-accent) 30%, white);
+        color: var(--brand-ink);
+        font-size: 0.78rem;
         font-weight: 600;
+        padding: 0.15em 0.6em;
+        border-radius: 4px;
       }
 
       .stagger {
@@ -111,6 +136,7 @@
       .stagger:nth-child(2) { animation-delay: 70ms; }
       .stagger:nth-child(3) { animation-delay: 120ms; }
       .stagger:nth-child(4) { animation-delay: 170ms; }
+      .stagger:nth-child(5) { animation-delay: 220ms; }
 
       @keyframes rise-in {
         from {
@@ -137,79 +163,104 @@
         <a href="#top"><strong>go-jobs</strong></a>
         <nav>
           <a href="https://github.com/justEstif/go-jobs">GitHub</a>
-          <a href="https://jobs.estifanos.cc/">Live Demo</a>
+          <a href="https://jobs.estifanos.cc/">Live Site</a>
+          <a href="https://www.npmjs.com/package/@justestif/go-jobs">npm</a>
         </nav>
       </header>
 
       <main id="top" class="flow-gap">
         <section class="hero">
-          <p class="allcaps"><small>self-hosted startup job search</small></p>
-          <h1>Find better jobs. Keep full control of your data.</h1>
+          <p class="allcaps"><small>self-hosted job aggregator</small></p>
+          <h1>Search 1000+ companies. Track your pipeline. Own your data.</h1>
           <p>
-            go-jobs is a self-hosted job aggregator that pulls from Greenhouse, Lever,
-            and Ashby, enriches postings with structured metadata, and gives you both a
-            fast web UI and a CLI to search, filter, and track your pipeline.
+            go-jobs pulls job postings from Greenhouse, Lever, and Ashby, enriches them
+            with structured tags, and gives you a web UI and CLI to search, filter,
+            track applications, and get AI-powered resume coaching.
           </p>
           <p>
-            <a class="chip ok border" href="https://github.com/justEstif/go-jobs/blob/main/README.md">Get started</a>
-            <a class="chip info border" href="https://github.com/justEstif/go-jobs/blob/main/docs/self-hosting.md">Self-hosting guide</a>
-            <a class="chip plain border" href="https://github.com/justEstif/go-jobs/blob/main/README.md">View repository</a>
+            <a class="chip ok border" href="https://jobs.estifanos.cc/">Try it live</a>
+            <a class="chip info border" href="https://www.npmjs.com/package/@justestif/go-jobs">Install CLI</a>
+            <a class="chip plain border" href="https://github.com/justEstif/go-jobs">GitHub</a>
           </p>
-          <div class="chip-row">
-            <span class="chip border">Go + PostgreSQL</span>
-            <span class="chip border">Hexagonal architecture</span>
-            <span class="chip border">Web + CLI</span>
-            <span class="chip border">Optional LLM enrichment</span>
-            <span class="chip border">1000+ companies</span>
-          </div>
         </section>
 
-
         <section class="stagger">
-          <h2>Try it live</h2>
-          <p><a href="https://jobs.estifanos.cc/">jobs.estifanos.cc</a></p>
+          <h2>What you get</h2>
+          <div class="grid-two">
+            <article class="box">
+              <h3>Search &amp; filter</h3>
+              <p>Full-text search across jobs and companies. Filter by role, seniority, remote policy, country, and date.</p>
+            </article>
+            <article class="box">
+              <h3>Pipeline tracker</h3>
+              <p>Mark jobs as interested, applied, interviewing, offer, or rejected. Add private notes. See everything on one board.</p>
+            </article>
+            <article class="box">
+              <h3>Job Coach</h3>
+              <p>AI-powered resume analysis against any job posting. ATS gap detection, fit scoring, optimized resume, and portfolio case study generation. Bring your own LLM (Ollama or OpenAI).</p>
+            </article>
+            <article class="box">
+              <h3>Company management</h3>
+              <p>Hide companies you're not interested in directly from job listings. Manage your blocked list in settings.</p>
+            </article>
+            <article class="box">
+              <h3>Auto-enrichment</h3>
+              <p>Every job posting is automatically tagged with role type, seniority level, remote policy, country, and tech stack.</p>
+            </article>
+            <article class="box">
+              <h3>Self-hosted</h3>
+              <p>Your data stays on your machine. Run with Docker or deploy to any VPS. No third-party accounts required.</p>
+            </article>
+          </div>
         </section>
 
         <section class="stagger quickstart">
           <h2>CLI</h2>
           <div class="box">
-            <p>Install the CLI from npm and use it against the live app or your own instance:</p>
+            <p>Install from <a href="https://www.npmjs.com/package/@justestif/go-jobs">npm</a> and start searching:</p>
             <pre><code>npm install -g @justestif/go-jobs
-jobs search --query "backend go"
-jobs login
+
+jobs --base-url https://jobs.estifanos.cc search --query "backend go"
+jobs --base-url https://jobs.estifanos.cc login
 jobs pipeline</code></pre>
-            <p>To target the hosted app: <code>jobs --base-url https://jobs.estifanos.cc &lt;command&gt;</code></p>
           </div>
+        </section>
+
+        <section class="stagger quickstart">
+          <h2>Use with your AI agent <span class="mcp-badge">MCP coming soon</span></h2>
+          <p>The CLI works as a tool for AI coding agents. Pipe prompts to your LLM, or let your agent drive the full workflow:</p>
+          <pre class="prompt-block"><code><span class="comment"># Agent prompt example:</span>
+<span class="prompt">&gt;</span> Search go-jobs for backend engineering roles, find one that
+  matches my resume, analyze the fit, and draft a case study
+  for my strongest matching project.
+
+<span class="comment"># The agent runs:</span>
+<span class="output">$ jobs search --query "backend engineer" --role engineering --json
+$ jobs resume set --file ~/resume.md
+$ jobs analyze &lt;job-id&gt;
+$ jobs prompt &lt;job-id&gt; | llm "optimize my resume for this role"</span></code></pre>
+          <p>
+            <code>jobs prompt &lt;job-id&gt;</code> exports the raw analysis prompt so you
+            can pipe it to any LLM — no provider config needed, just a resume on file.
+          </p>
         </section>
 
         <section class="stagger quickstart">
           <h2>Self-hosting</h2>
           <div class="box">
             <pre><code>docker pull ghcr.io/justestif/go-jobs:latest</code></pre>
-            <p>Then run with Docker Compose or plain Docker. See the <a href="https://github.com/justEstif/go-jobs/blob/main/docs/self-hosting.md">self-hosting guide</a> for env vars and full setup.</p>
+            <p>Run with Docker Compose or plain Docker. See the <a href="https://github.com/justEstif/go-jobs/blob/main/docs/self-hosting.md">self-hosting guide</a> for env vars and full setup.</p>
           </div>
         </section>
 
-        <section class="stagger docs-list">
-          <h2>Documentation</h2>
-          <div class="grid-two">
-            <article class="box">
-              <h3><a href="https://github.com/justEstif/go-jobs/blob/main/docs/self-hosting.md">Self-hosting</a></h3>
-              <p>Pull the Docker image and run with Docker Compose or plain Docker.</p>
-            </article>
-            <article class="box">
-              <h3><a href="https://github.com/justEstif/go-jobs/blob/main/docs/MVP.md">MVP scope</a></h3>
-              <p>Problem framing, feature set, milestones, and non-goals.</p>
-            </article>
-            <article class="box">
-              <h3><a href="https://github.com/justEstif/go-jobs/blob/main/docs/ARCHITECTURE.md">Architecture</a></h3>
-              <p>System design, data model, and service boundaries.</p>
-            </article>
-            <article class="box">
-              <h3><a href="https://github.com/justEstif/go-jobs/blob/main/docs/interfaces.md">Interfaces</a></h3>
-              <p>Authoritative domain types and port contracts.</p>
-            </article>
-          </div>
+        <section class="stagger">
+          <h2>Docs</h2>
+          <ul>
+            <li><a href="https://github.com/justEstif/go-jobs/blob/main/docs/self-hosting.md">Self-hosting guide</a> &mdash; Docker setup, env vars, deployment</li>
+            <li><a href="https://github.com/justEstif/go-jobs/blob/main/docs/MVP.md">MVP scope</a> &mdash; problem framing, features, milestones</li>
+            <li><a href="https://github.com/justEstif/go-jobs/blob/main/docs/ARCHITECTURE.md">Architecture</a> &mdash; system design, data model, service boundaries</li>
+            <li><a href="https://github.com/justEstif/go-jobs/blob/main/docs/interfaces.md">Interfaces</a> &mdash; domain types and port contracts</li>
+          </ul>
         </section>
       </main>
     </div>
