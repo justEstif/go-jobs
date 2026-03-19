@@ -46,3 +46,36 @@ func (h *CoachHandler) Analyze(w http.ResponseWriter, r *http.Request) {
 	csrfToken := csrf.Token(r)
 	components.CoachResultPanel(result, "", idStr, csrfToken).Render(r.Context(), w)
 }
+
+// CaseStudyPage handles GET /case-study. Renders the case study form.
+func (h *CoachHandler) CaseStudyPage(w http.ResponseWriter, r *http.Request) {
+	csrfToken := csrf.Token(r)
+	components.CaseStudyPage("", "", true, csrfToken).Render(r.Context(), w)
+}
+
+// CaseStudyGenerate handles POST /case-study. Generates a case study and
+// renders the result.
+func (h *CoachHandler) CaseStudyGenerate(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	userID, _ := middleware.UserIDFromContext(r.Context())
+	description := r.FormValue("description")
+
+	if description == "" {
+		http.Error(w, "Project description is required", http.StatusBadRequest)
+		return
+	}
+
+	result, err := h.coach.GenerateCaseStudy(r.Context(), userID, description)
+	if err != nil {
+		log.Printf("coach case study: %v", err)
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		return
+	}
+
+	csrfToken := csrf.Token(r)
+	components.CaseStudyPage(description, result, true, csrfToken).Render(r.Context(), w)
+}

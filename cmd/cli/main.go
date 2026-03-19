@@ -6,8 +6,10 @@ import (
 	"log"
 	"os"
 
+	"github.com/justestif/go-jobs/internal/adapters/crypto"
 	"github.com/justestif/go-jobs/internal/adapters/enrichment"
 	"github.com/justestif/go-jobs/internal/adapters/httpclient"
+	"github.com/justestif/go-jobs/internal/adapters/llm"
 	"github.com/justestif/go-jobs/internal/adapters/postgres"
 	"github.com/justestif/go-jobs/internal/adapters/scrapers"
 	"github.com/justestif/go-jobs/internal/cli"
@@ -120,8 +122,23 @@ func setupLocalServices(ctx context.Context) (cli.Services, error) {
 	// Enrichment adapter (two-tier: ATS → rules)
 	enricher := enrichment.NewTieredEnricher()
 
-	// No-op encryption for CLI (keys stay in env vars, not DB)
-	noopEncrypt := func(plaintext string) (string, error) { return plaintext, nil }
+	// Encryption for user API keys at rest.
+	encryptor, err := crypto.NewKeyEncryptor()
+	if err != nil {
+		log.Printf("Warning: %v — LLM API key encryption disabled (Ollama still works)", err)
+	}
+	encryptFn := func(plaintext string) (string, error) {
+		if encryptor == nil {
+			return plaintext, nil
+		}
+		return encryptor.Encrypt(plaintext)
+	}
+	decryptFn := func(ciphertext string) (string, error) {
+		if encryptor == nil {
+			return ciphertext, nil
+		}
+		return encryptor.Decrypt(ciphertext)
+	}
 
 	// Core services
 	scrapeService := services.NewScrapeService(
@@ -136,8 +153,10 @@ func setupLocalServices(ctx context.Context) (cli.Services, error) {
 	searchService := services.NewJobSearchService(jobRepo)
 	applicationService := services.NewApplicationService(userJobRepo, jobRepo)
 	authService := services.NewAuthService(userRepo, userRepo)
-	_ = services.NewUserService(userRepo, noopEncrypt)           // not used in CLI yet
+	userService := services.NewUserService(userRepo, encryptFn)
 	_ = services.NewCompanyService(companyRepo, userCompanyRepo) // not used in CLI
+	coachCacheRepo := postgres.NewCoachCacheRepo(postgres.DB)
+	coachService := services.NewJobCoachService(userRepo, jobRepo, companyRepo, coachCacheRepo, llm.NewClient, decryptFn)
 
 	serve := func(ctx context.Context) error {
 		return fmt.Errorf("server mode not available in CLI binary")
@@ -150,6 +169,8 @@ func setupLocalServices(ctx context.Context) (cli.Services, error) {
 		Application: applicationService,
 		Session:     userRepo,
 		Auth:        authService,
+		User:        userService,
+		Coach:       coachService,
 		Serve:       serve,
 	}, nil
 }

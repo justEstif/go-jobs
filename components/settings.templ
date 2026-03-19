@@ -153,3 +153,43 @@ templ CoachResultPanel(result string, modelUsed string, jobID string, csrfToken 
 		}
 	</div>
 }
+
+// CaseStudyPage renders the case study generation page.
+// description is preserved across submissions so the user can iterate.
+// result is the generated case study (empty on first load).
+templ CaseStudyPage(description string, result string, loggedIn bool, csrfToken string) {
+	@Layout("Case Study", loggedIn, csrfToken) {
+		<div class="max-w-2xl">
+			<h1 class="text-xl font-semibold mb-2">Case Study Generator</h1>
+			<p class="text-sm text-base-content/50 mb-6">
+				Expand a project description or resume bullet into a structured portfolio case study.
+			</p>
+
+			<!-- Input form -->
+			<section class="bg-base-100 border border-base-200 rounded-sm px-5 py-4 mb-6">
+				<form method="POST" action="/case-study">
+					<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+					<label class="label py-1"><span class="label-text text-xs font-medium">Project description</span></label>
+					<textarea
+						name="description"
+						class="textarea textarea-bordered w-full h-32 text-sm leading-relaxed"
+						placeholder="Describe a project you worked on — what you built, your role, the tech, and any results. The more detail, the better the output."
+					>{ description }</textarea>
+					<div class="mt-3">
+						<button type="submit" class="btn btn-sm btn-primary">Generate case study</button>
+					</div>
+				</form>
+			</section>
+
+			<!-- Result -->
+			if result != "" {
+				<section class="bg-base-100 border border-base-200 rounded-sm px-5 py-4">
+					<h2 class="text-sm font-medium uppercase tracking-wide text-base-content/50 mb-3">Generated Case Study</h2>
+					<div class="prose prose-sm max-w-none text-base-content/80">
+						@templ.Raw(renderJobDescriptionHTML(result))
+					</div>
+				</section>
+			}
+		</div>
+	}
+}

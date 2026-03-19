@@ -296,6 +296,8 @@ func runHTTPServer(
 		r.Get("/settings", settingsH.Show)
 		r.Post("/settings/resume", settingsH.SaveResume)
 		r.Post("/settings/llm", settingsH.SaveLLM)
+		r.Get("/case-study", coachH.CaseStudyPage)
+		r.Post("/case-study", coachH.CaseStudyGenerate)
 	})
 
 	// ----------------------------------------------------------------
