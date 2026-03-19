@@ -16,11 +16,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 
+	"github.com/justestif/go-jobs/internal/adapters/crypto"
 	"github.com/justestif/go-jobs/internal/adapters/enrichment"
 	httphandlers "github.com/justestif/go-jobs/internal/adapters/http"
 	"github.com/justestif/go-jobs/internal/adapters/http/api"
 	"github.com/justestif/go-jobs/internal/adapters/http/middleware"
 	"github.com/justestif/go-jobs/internal/adapters/httpclient"
+	"github.com/justestif/go-jobs/internal/adapters/llm"
 	"github.com/justestif/go-jobs/internal/adapters/postgres"
 	"github.com/justestif/go-jobs/internal/adapters/scrapers"
 	"github.com/justestif/go-jobs/internal/cli"
@@ -72,9 +74,26 @@ func main() {
 	}
 	seeder := scrapers.NewSimplifySeeder()
 
-	// Enrichment adapter (tiered: ATS → rules → LLM)
-	// LLM tier is disabled until the user configures an API key (M5).
-	enricher := enrichment.NewTieredEnricher(domain.LLMProvider(""), "")
+	// Enrichment adapter (tiered: ATS → rules; LLM tier removed — see Job Coach)
+	enricher := enrichment.NewTieredEnricher()
+
+	// Encryption for user API keys at rest.
+	encryptor, err := crypto.NewKeyEncryptor()
+	if err != nil {
+		log.Printf("Warning: %v — LLM API key encryption disabled (Ollama still works)", err)
+	}
+	encryptFn := func(plaintext string) (string, error) {
+		if encryptor == nil {
+			return plaintext, nil // no encryption configured
+		}
+		return encryptor.Encrypt(plaintext)
+	}
+	decryptFn := func(ciphertext string) (string, error) {
+		if encryptor == nil {
+			return ciphertext, nil
+		}
+		return encryptor.Decrypt(ciphertext)
+	}
 
 	// Core services
 	scrapeService := services.NewScrapeService(
@@ -89,8 +108,10 @@ func main() {
 	searchService := services.NewJobSearchService(jobRepo)
 	applicationService := services.NewApplicationService(userJobRepo, jobRepo)
 	authService := services.NewAuthService(userRepo, userRepo)
-	userService := services.NewUserService(userRepo)
+	userService := services.NewUserService(userRepo, encryptFn)
 	companyService := services.NewCompanyService(companyRepo, userCompanyRepo)
+	coachCacheRepo := postgres.NewCoachCacheRepo(postgres.DB)
+	coachService := services.NewJobCoachService(userRepo, jobRepo, companyRepo, coachCacheRepo, llm.NewClient, decryptFn)
 	serve := func(ctx context.Context) error {
 		return runHTTPServer(
 			ctx,
@@ -101,6 +122,7 @@ func main() {
 			applicationService,
 			userService,
 			companyService,
+			coachService,
 		)
 	}
 
@@ -119,6 +141,8 @@ func main() {
 		Application: applicationService,
 		Session:     userRepo,
 		Auth:        authService,
+		User:        userService,
+		Coach:       coachService,
 		Serve:       serve,
 	}
 	rootCmd := cli.NewRootCmd(cliServices)
@@ -205,6 +229,7 @@ func runHTTPServer(
 	applicationService ports.ApplicationService,
 	userService ports.UserService,
 	companyService ports.CompanyService,
+	coachService ports.JobCoachService,
 ) error {
 	sessionSecret := []byte(os.Getenv("SESSION_SECRET"))
 	if len(sessionSecret) == 0 {
@@ -234,10 +259,12 @@ func runHTTPServer(
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
 	authH := httphandlers.NewAuthHandler(authService, sm)
-	jobsH := httphandlers.NewJobSearchHandler(searchService, applicationService, userService)
+	jobsH := httphandlers.NewJobSearchHandler(searchService, applicationService, userService, coachService)
 	trackerH := httphandlers.NewTrackerHandler(applicationService, searchService)
 	pipelineH := httphandlers.NewPipelineHandler(applicationService)
 	companyH := httphandlers.NewCompanyHandler(companyService)
+	settingsH := httphandlers.NewSettingsHandler(userService)
+	coachH := httphandlers.NewCoachHandler(coachService)
 	apiH := api.New(authService, searchService, applicationService)
 
 	r.Group(func(r chi.Router) {
@@ -261,10 +288,14 @@ func runHTTPServer(
 		r.Post("/jobs/{id}/apply", trackerH.Apply)
 		r.Post("/jobs/{id}/status", trackerH.SetStatus)
 		r.Post("/jobs/{id}/notes", trackerH.SetNotes)
+		r.Post("/jobs/{id}/analyze", coachH.Analyze)
 		r.Get("/pipeline", pipelineH.List)
 		r.Get("/companies", companyH.List)
 		r.Post("/companies/{id}/hide", companyH.Hide)
 		r.Post("/companies/{id}/show", companyH.Show)
+		r.Get("/settings", settingsH.Show)
+		r.Post("/settings/resume", settingsH.SaveResume)
+		r.Post("/settings/llm", settingsH.SaveLLM)
 	})
 
 	// ----------------------------------------------------------------

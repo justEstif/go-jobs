@@ -117,8 +117,11 @@ func setupLocalServices(ctx context.Context) (cli.Services, error) {
 	}
 	seeder := scrapers.NewSimplifySeeder()
 
-	// Enrichment adapter (LLM tier disabled by default for CLI)
-	enricher := enrichment.NewTieredEnricher(domain.LLMProvider(""), "")
+	// Enrichment adapter (two-tier: ATS → rules)
+	enricher := enrichment.NewTieredEnricher()
+
+	// No-op encryption for CLI (keys stay in env vars, not DB)
+	noopEncrypt := func(plaintext string) (string, error) { return plaintext, nil }
 
 	// Core services
 	scrapeService := services.NewScrapeService(
@@ -133,7 +136,7 @@ func setupLocalServices(ctx context.Context) (cli.Services, error) {
 	searchService := services.NewJobSearchService(jobRepo)
 	applicationService := services.NewApplicationService(userJobRepo, jobRepo)
 	authService := services.NewAuthService(userRepo, userRepo)
-	_ = services.NewUserService(userRepo)                        // not used in CLI
+	_ = services.NewUserService(userRepo, noopEncrypt)           // not used in CLI yet
 	_ = services.NewCompanyService(companyRepo, userCompanyRepo) // not used in CLI
 
 	serve := func(ctx context.Context) error {

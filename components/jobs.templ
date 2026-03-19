@@ -230,7 +230,9 @@ templ JobCard(job domain.Job, loggedIn bool, csrfToken string) {
 }
 
 // JobDetailPage renders the full job detail view.
-templ JobDetailPage(job domain.Job, userJob *domain.UserJob, loggedIn bool, csrfToken string) {
+// hasResume indicates the user has a resume configured for Job Coach.
+// hasLLM indicates the user has an LLM provider configured.
+templ JobDetailPage(job domain.Job, userJob *domain.UserJob, loggedIn bool, csrfToken string, hasResume bool, hasLLM bool) {
 	@Layout(job.Title, loggedIn, csrfToken) {
 		<div class="max-w-3xl">
 			<!-- Breadcrumb -->
@@ -278,6 +280,48 @@ templ JobDetailPage(job domain.Job, userJob *domain.UserJob, loggedIn bool, csrf
 			if loggedIn {
 				<div id="notes-area" class="mb-6">
 					@NotesPartial(job.ID, notesFromUserJob(userJob), csrfToken)
+				</div>
+			}
+			<!-- Job Coach -->
+			if loggedIn && hasResume && hasLLM {
+				<div id="coach-panel" class="mb-6">
+					<div class="bg-base-100 border border-base-200 rounded-sm px-5 py-4">
+						<div class="flex items-center justify-between">
+							<h2 class="text-sm font-medium uppercase tracking-wide text-base-content/50">Job Coach</h2>
+							<form
+								method="POST"
+								action={ "/jobs/" + job.ID.String() + "/analyze" }
+								hx-post={ "/jobs/" + job.ID.String() + "/analyze" }
+								hx-target="#coach-panel"
+								hx-swap="innerHTML"
+								hx-disabled-elt="button"
+							>
+								<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+								<button type="submit" class="btn btn-sm btn-outline btn-primary">
+									Analyze
+								</button>
+							</form>
+						</div>
+						<p class="text-xs text-base-content/40 mt-2">Compare your resume against this role — ATS gaps, fit analysis, and optimized resume.</p>
+					</div>
+				</div>
+			} else if loggedIn && (!hasResume || !hasLLM) {
+				<div class="mb-6">
+					<div class="bg-base-100 border border-base-200 rounded-sm px-5 py-4">
+						<div class="flex items-center justify-between">
+							<h2 class="text-sm font-medium uppercase tracking-wide text-base-content/50">Job Coach</h2>
+							<a href="/settings" class="btn btn-sm btn-ghost text-xs">Set up</a>
+						</div>
+						<p class="text-xs text-base-content/40 mt-2">
+							if !hasResume && !hasLLM {
+								Add your resume and configure an LLM provider in Settings to analyze jobs.
+							} else if !hasResume {
+								Add your resume in Settings to analyze jobs.
+							} else {
+								Configure an LLM provider in Settings to analyze jobs.
+							}
+						</p>
+					</div>
 				</div>
 			}
 			<!-- Description -->

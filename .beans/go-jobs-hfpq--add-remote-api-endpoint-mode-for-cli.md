@@ -1,11 +1,11 @@
 ---
 # go-jobs-hfpq
 title: Add remote API endpoint mode for CLI
-status: todo
+status: completed
 type: feature
 priority: normal
 created_at: 2026-03-18T18:56:22Z
-updated_at: 2026-03-18T18:57:03Z
+updated_at: 2026-03-19T16:06:15Z
 parent: go-jobs-qlam
 ---
 
@@ -25,3 +25,13 @@ Make CLI usable as a standalone client against an HTTP API endpoint.
 - [ ] Add endpoint/base-url flag wiring in root command.
 - [ ] Update docs with local dev and hosted usage examples.
 - [ ] Add tests for config precedence and request routing.
+
+
+
+## Summary of Changes
+
+Remote API endpoint mode has been implemented:
+-  flag support added to CLI
+- HTTP client adapter for remote mode
+- Dev default reads from BASE_URL env (defaults to http://127.0.0.1:3000)
+- Local mode available for serve/scrape/enrich commands

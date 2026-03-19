@@ -35,7 +35,7 @@ const createUser = `-- name: CreateUser :one
 
 INSERT INTO users (email, password_hash)
 VALUES ($1, $2)
-RETURNING id, email, password_hash, llm_api_key, llm_provider, last_visited_at, created_at
+RETURNING id, email, password_hash, llm_api_key, llm_provider, last_visited_at, created_at, resume, llm_model, llm_base_url
 `
 
 type CreateUserParams struct {
@@ -57,6 +57,9 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.LlmProvider,
 		&i.LastVisitedAt,
 		&i.CreatedAt,
+		&i.Resume,
+		&i.LlmModel,
+		&i.LlmBaseUrl,
 	)
 	return i, err
 }
@@ -68,6 +71,36 @@ DELETE FROM sessions WHERE token = $1
 func (q *Queries) DeleteSession(ctx context.Context, token string) error {
 	_, err := q.db.Exec(ctx, deleteSession, token)
 	return err
+}
+
+const getCoachCache = `-- name: GetCoachCache :one
+
+SELECT user_id, job_id, kind, result, model_used, created_at FROM coach_cache
+WHERE user_id = $1 AND job_id = $2 AND kind = $3
+LIMIT 1
+`
+
+type GetCoachCacheParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	JobID  pgtype.UUID `json:"job_id"`
+	Kind   string      `json:"kind"`
+}
+
+// ============================================================
+// Coach Cache
+// ============================================================
+func (q *Queries) GetCoachCache(ctx context.Context, arg GetCoachCacheParams) (CoachCache, error) {
+	row := q.db.QueryRow(ctx, getCoachCache, arg.UserID, arg.JobID, arg.Kind)
+	var i CoachCache
+	err := row.Scan(
+		&i.UserID,
+		&i.JobID,
+		&i.Kind,
+		&i.Result,
+		&i.ModelUsed,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const getCompanyByBoardToken = `-- name: GetCompanyByBoardToken :one
@@ -244,7 +277,7 @@ func (q *Queries) GetLatestScrapeRun(ctx context.Context) (ScrapeRun, error) {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, llm_api_key, llm_provider, last_visited_at, created_at FROM users
+SELECT id, email, password_hash, llm_api_key, llm_provider, last_visited_at, created_at, resume, llm_model, llm_base_url FROM users
 WHERE email = $1
 LIMIT 1
 `
@@ -260,12 +293,15 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.LlmProvider,
 		&i.LastVisitedAt,
 		&i.CreatedAt,
+		&i.Resume,
+		&i.LlmModel,
+		&i.LlmBaseUrl,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, password_hash, llm_api_key, llm_provider, last_visited_at, created_at FROM users
+SELECT id, email, password_hash, llm_api_key, llm_provider, last_visited_at, created_at, resume, llm_model, llm_base_url FROM users
 WHERE id = $1
 LIMIT 1
 `
@@ -281,12 +317,15 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 		&i.LlmProvider,
 		&i.LastVisitedAt,
 		&i.CreatedAt,
+		&i.Resume,
+		&i.LlmModel,
+		&i.LlmBaseUrl,
 	)
 	return i, err
 }
 
 const getUserByToken = `-- name: GetUserByToken :one
-SELECT u.id, u.email, u.password_hash, u.llm_api_key, u.llm_provider, u.last_visited_at, u.created_at
+SELECT u.id, u.email, u.password_hash, u.llm_api_key, u.llm_provider, u.last_visited_at, u.created_at, u.resume, u.llm_model, u.llm_base_url
 FROM users u
 JOIN sessions s ON s.user_id = u.id
 WHERE s.token = $1
@@ -304,6 +343,9 @@ func (q *Queries) GetUserByToken(ctx context.Context, token string) (User, error
 		&i.LlmProvider,
 		&i.LastVisitedAt,
 		&i.CreatedAt,
+		&i.Resume,
+		&i.LlmModel,
+		&i.LlmBaseUrl,
 	)
 	return i, err
 }
@@ -803,7 +845,10 @@ UPDATE users
 SET
     llm_api_key     = $2,
     llm_provider    = $3,
-    last_visited_at = $4
+    llm_model       = $4,
+    llm_base_url    = $5,
+    resume          = $6,
+    last_visited_at = $7
 WHERE id = $1
 `
 
@@ -811,6 +856,9 @@ type UpdateUserParams struct {
 	ID            pgtype.UUID        `json:"id"`
 	LlmApiKey     string             `json:"llm_api_key"`
 	LlmProvider   string             `json:"llm_provider"`
+	LlmModel      string             `json:"llm_model"`
+	LlmBaseUrl    string             `json:"llm_base_url"`
+	Resume        string             `json:"resume"`
 	LastVisitedAt pgtype.Timestamptz `json:"last_visited_at"`
 }
 
@@ -819,7 +867,38 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) error {
 		arg.ID,
 		arg.LlmApiKey,
 		arg.LlmProvider,
+		arg.LlmModel,
+		arg.LlmBaseUrl,
+		arg.Resume,
 		arg.LastVisitedAt,
+	)
+	return err
+}
+
+const upsertCoachCache = `-- name: UpsertCoachCache :exec
+INSERT INTO coach_cache (user_id, job_id, kind, result, model_used)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (user_id, job_id, kind) DO UPDATE
+    SET result     = EXCLUDED.result,
+        model_used = EXCLUDED.model_used,
+        created_at = NOW()
+`
+
+type UpsertCoachCacheParams struct {
+	UserID    pgtype.UUID `json:"user_id"`
+	JobID     pgtype.UUID `json:"job_id"`
+	Kind      string      `json:"kind"`
+	Result    string      `json:"result"`
+	ModelUsed string      `json:"model_used"`
+}
+
+func (q *Queries) UpsertCoachCache(ctx context.Context, arg UpsertCoachCacheParams) error {
+	_, err := q.db.Exec(ctx, upsertCoachCache,
+		arg.UserID,
+		arg.JobID,
+		arg.Kind,
+		arg.Result,
+		arg.ModelUsed,
 	)
 	return err
 }

@@ -50,12 +50,15 @@ func (r *UserRepo) GetByID(ctx context.Context, id domain.UserID) (domain.User, 
 	return domainUserFromDB(row), nil
 }
 
-// Update writes mutable user fields (LLM key, provider, last_visited_at) back to the DB.
+// Update writes mutable user fields back to the DB.
 func (r *UserRepo) Update(ctx context.Context, user domain.User) error {
 	err := r.q.UpdateUser(ctx, queries.UpdateUserParams{
 		ID:            uuidToPg(user.ID),
 		LlmApiKey:     user.LLMAPIKey,
 		LlmProvider:   string(user.LLMProvider),
+		LlmModel:      user.LLMModel,
+		LlmBaseUrl:    user.LLMBaseURL,
+		Resume:        user.Resume,
 		LastVisitedAt: timePtrToPg(user.LastVisitedAt),
 	})
 	if err != nil {

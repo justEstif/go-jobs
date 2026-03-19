@@ -22,7 +22,10 @@ UPDATE users
 SET
     llm_api_key     = $2,
     llm_provider    = $3,
-    last_visited_at = $4
+    llm_model       = $4,
+    llm_base_url    = $5,
+    resume          = $6,
+    last_visited_at = $7
 WHERE id = $1;
 
 -- name: TouchUserLastVisited :exec
@@ -292,3 +295,20 @@ ON CONFLICT (user_id, company_id) DO UPDATE
 -- name: ListHiddenCompanies :many
 SELECT company_id FROM user_companies
 WHERE user_id = $1 AND hidden = TRUE;
+
+-- ============================================================
+-- Coach Cache
+-- ============================================================
+
+-- name: GetCoachCache :one
+SELECT * FROM coach_cache
+WHERE user_id = $1 AND job_id = $2 AND kind = $3
+LIMIT 1;
+
+-- name: UpsertCoachCache :exec
+INSERT INTO coach_cache (user_id, job_id, kind, result, model_used)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (user_id, job_id, kind) DO UPDATE
+    SET result     = EXCLUDED.result,
+        model_used = EXCLUDED.model_used,
+        created_at = NOW();

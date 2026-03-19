@@ -22,14 +22,16 @@ type JobSearchHandler struct {
 	search      ports.JobSearchService
 	application ports.ApplicationService
 	user        ports.UserService
+	coach       ports.JobCoachService
 }
 
 // NewJobSearchHandler constructs a JobSearchHandler.
-func NewJobSearchHandler(search ports.JobSearchService, application ports.ApplicationService, user ports.UserService) *JobSearchHandler {
+func NewJobSearchHandler(search ports.JobSearchService, application ports.ApplicationService, user ports.UserService, coach ports.JobCoachService) *JobSearchHandler {
 	return &JobSearchHandler{
 		search:      search,
 		application: application,
 		user:        user,
+		coach:       coach,
 	}
 }
 
@@ -84,16 +86,24 @@ func (h *JobSearchHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var userJob *domain.UserJob
+	var hasResume, hasLLM bool
 	userID, loggedIn := middleware.UserIDFromContext(r.Context())
 	if loggedIn {
 		uj, err := h.application.GetUserJob(r.Context(), userID, job.ID)
 		if err == nil {
 			userJob = &uj
 		}
+
+		// Check if user has resume and LLM configured for coach feature.
+		user, err := h.user.GetByID(r.Context(), userID)
+		if err == nil {
+			hasResume = user.Resume != ""
+			hasLLM = user.LLMProvider != ""
+		}
 	}
 
 	csrfToken := csrf.Token(r)
-	components.JobDetailPage(job, userJob, loggedIn, csrfToken).Render(r.Context(), w)
+	components.JobDetailPage(job, userJob, loggedIn, csrfToken, hasResume, hasLLM).Render(r.Context(), w)
 }
 
 // parseSearchFilters extracts domain.SearchFilters from URL query params.

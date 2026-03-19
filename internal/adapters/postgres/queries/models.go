@@ -8,6 +8,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type CoachCache struct {
+	UserID    pgtype.UUID        `json:"user_id"`
+	JobID     pgtype.UUID        `json:"job_id"`
+	Kind      string             `json:"kind"`
+	Result    string             `json:"result"`
+	ModelUsed string             `json:"model_used"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type Company struct {
 	ID         pgtype.UUID        `json:"id"`
 	Name       string             `json:"name"`
@@ -77,6 +86,9 @@ type User struct {
 	LlmProvider   string             `json:"llm_provider"`
 	LastVisitedAt pgtype.Timestamptz `json:"last_visited_at"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	Resume        string             `json:"resume"`
+	LlmModel      string             `json:"llm_model"`
+	LlmBaseUrl    string             `json:"llm_base_url"`
 }
 
 type UserCompany struct {

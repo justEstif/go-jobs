@@ -16,6 +16,8 @@ type Services struct {
 	Application ports.ApplicationService
 	Session     ports.SessionRepository
 	Auth        ports.AuthService
+	User        ports.UserService
+	Coach       ports.JobCoachService
 	Serve       func(ctx context.Context) error
 }
 
@@ -51,6 +53,9 @@ func NewRootCmd(services Services) *cobra.Command {
 	root.AddCommand(newLoginCmd(services))
 	root.AddCommand(newLogoutCmd(services))
 	root.AddCommand(newServeCmd(services))
+	root.AddCommand(newResumeCmd(services))
+	root.AddCommand(newAnalyzeCmd(services))
+	root.AddCommand(newPromptCmd(services))
 
 	return root
 }

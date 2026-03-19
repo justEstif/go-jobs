@@ -59,7 +59,12 @@ type AuthService interface {
 
 // UserService manages user settings.
 type UserService interface {
-	SetLLMKey(ctx context.Context, userID domain.UserID, provider domain.LLMProvider, apiKey string) error
+	// SetLLMConfig stores the user's LLM provider, model, base URL, and
+	// encrypted API key. The apiKey is encrypted before storage — callers
+	// pass the plaintext key.
+	SetLLMConfig(ctx context.Context, userID domain.UserID, provider domain.LLMProvider, apiKey, model, baseURL string) error
+	// SetResume stores the user's resume (markdown/plaintext) for Job Coach analysis.
+	SetResume(ctx context.Context, userID domain.UserID, resume string) error
 	GetByID(ctx context.Context, id domain.UserID) (domain.User, error)
 	// TouchLastVisited updates LastVisitedAt to now. Called on each authenticated session.
 	TouchLastVisited(ctx context.Context, userID domain.UserID) error
@@ -75,6 +80,31 @@ type CompanyService interface {
 	// ListAllWithHiddenIDs returns all active companies and a set of company IDs
 	// the user has hidden. Used to render the /companies management page.
 	ListAllWithHiddenIDs(ctx context.Context, userID domain.UserID) (companies []domain.Company, hiddenIDs map[domain.CompanyID]bool, err error)
+}
+
+// JobCoachService provides LLM-powered resume analysis and optimization.
+//
+// Users upload a resume to their profile and can analyze it against a specific
+// job posting for ATS optimization, fit analysis, and a tailored resume rewrite.
+// They can also generate portfolio case studies from project descriptions.
+type JobCoachService interface {
+	// AnalyzeJob compares the user's resume against a job posting and returns
+	// structured analysis: ATS keyword gaps, fit assessment, and an optimized
+	// resume tailored to the role. Returns a cached result if available unless
+	// refresh is true.
+	AnalyzeJob(ctx context.Context, userID domain.UserID, jobID domain.JobID, refresh bool) (string, error)
+
+	// GenerateCaseStudy expands a project description or resume bullet into a
+	// structured portfolio case study (Problem → Process → Solution → Results → Learnings).
+	GenerateCaseStudy(ctx context.Context, userID domain.UserID, projectDescription string) (string, error)
+
+	// BuildAnalyzePrompt returns the raw system + user prompt for job analysis
+	// without calling the LLM. Users can pipe this to their own tooling.
+	// Requires a resume but does NOT require an LLM provider to be configured.
+	BuildAnalyzePrompt(ctx context.Context, userID domain.UserID, jobID domain.JobID) (systemPrompt, userPrompt string, err error)
+
+	// BuildCaseStudyPrompt returns the raw prompts for case study generation.
+	BuildCaseStudyPrompt(ctx context.Context, userID domain.UserID, projectDescription string) (systemPrompt, userPrompt string, err error)
 }
 
 // EnrichService runs the enrichment pipeline over un-tagged jobs.

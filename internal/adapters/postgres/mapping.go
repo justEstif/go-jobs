@@ -170,6 +170,9 @@ func domainUserFromDB(u queries.User) domain.User {
 		PasswordHash:  u.PasswordHash,
 		LLMAPIKey:     u.LlmApiKey,
 		LLMProvider:   domain.LLMProvider(u.LlmProvider),
+		LLMModel:      u.LlmModel,
+		LLMBaseURL:    u.LlmBaseUrl,
+		Resume:        u.Resume,
 		LastVisitedAt: pgToTimePtr(u.LastVisitedAt),
 		CreatedAt:     pgToTime(u.CreatedAt),
 	}

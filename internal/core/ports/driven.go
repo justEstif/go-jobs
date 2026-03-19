@@ -116,6 +116,30 @@ type JobEnricher interface {
 	Enrich(ctx context.Context, job domain.Job) (domain.JobTags, error)
 }
 
+// CoachCacheRepository persists and retrieves cached LLM analysis results.
+//
+// Caching avoids re-spending on identical LLM calls. Users can force a refresh
+// ("Re-analyze") which overwrites the cached row via Upsert.
+type CoachCacheRepository interface {
+	// Get returns the cached result for the (userID, jobID, kind) triple.
+	// Returns an error wrapping pgx.ErrNoRows if no cache entry exists.
+	Get(ctx context.Context, userID domain.UserID, jobID domain.JobID, kind domain.CoachCacheKind) (domain.CoachCache, error)
+	// Upsert writes or overwrites a cache entry.
+	Upsert(ctx context.Context, entry domain.CoachCache) error
+}
+
+// LLMClient sends prompts to an LLM provider and returns the response.
+//
+// Each adapter (Ollama, OpenAI) implements this interface. The adapter
+// constructs a fresh SDK client per call using the provided credentials —
+// keys are never retained beyond the call lifetime.
+type LLMClient interface {
+	// Complete sends a system prompt and user prompt to the model and returns
+	// the full response text. The provider, model, API key, and base URL are
+	// configured at adapter construction time.
+	Complete(ctx context.Context, systemPrompt, userPrompt string) (string, error)
+}
+
 // CompanySeeder discovers company slugs/tokens from external sources
 // (e.g. parsing the Simplify README files) and returns them as Company values
 // ready for upsert.

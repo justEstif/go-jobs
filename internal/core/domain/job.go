@@ -90,6 +90,7 @@ const (
 	LLMOpenAI    LLMProvider = "openai"
 	LLMAnthropic LLMProvider = "anthropic"
 	LLMGoogle    LLMProvider = "google"
+	LLMOllama    LLMProvider = "ollama"
 )
 
 // Company is a company whose job board we scrape.
@@ -177,6 +178,9 @@ type User struct {
 	PasswordHash  string // bcrypt; never returned to callers outside auth
 	LLMAPIKey     string // AES-256-GCM encrypted at rest; empty if not configured
 	LLMProvider   LLMProvider
+	LLMModel      string     // model name (e.g. "gpt-4o-mini", "llama3.1"); empty = provider default
+	LLMBaseURL    string     // custom endpoint URL; used for Ollama (default: http://localhost:11434)
+	Resume        string     // markdown/plaintext resume for Job Coach analysis; empty if not set
 	LastVisitedAt *time.Time // updated on each session; nil on first visit
 	CreatedAt     time.Time
 }
@@ -210,6 +214,24 @@ type ScrapeRun struct {
 	JobsUpdated int
 	JobsRemoved int
 	Error       string // non-empty if Status = ScrapeStatusFailed
+}
+
+// CoachCacheKind identifies the type of cached LLM analysis.
+type CoachCacheKind string
+
+const (
+	CoachKindAnalyze   CoachCacheKind = "analyze"
+	CoachKindCaseStudy CoachCacheKind = "case_study"
+)
+
+// CoachCache is a cached LLM analysis result for a (user, job, kind) triple.
+type CoachCache struct {
+	UserID    UserID
+	JobID     JobID
+	Kind      CoachCacheKind
+	Result    string
+	ModelUsed string
+	CreatedAt time.Time
 }
 
 // SearchFilters defines the structural filter dimensions for job search.

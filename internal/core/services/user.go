@@ -8,26 +8,59 @@ import (
 	"github.com/justestif/go-jobs/internal/core/ports"
 )
 
+// KeyEncryptor encrypts API keys before storage. Injected by the composition root.
+type KeyEncryptor func(plaintext string) (string, error)
+
 // userService implements ports.UserService.
 type userService struct {
-	users ports.UserRepository
+	users      ports.UserRepository
+	encryptKey KeyEncryptor
 }
 
 // NewUserService constructs a UserService backed by the given UserRepository.
-func NewUserService(users ports.UserRepository) ports.UserService {
-	return &userService{users: users}
+// encryptKey encrypts API keys before they are persisted. Pass a no-op function
+// if encryption is not configured (e.g. in tests).
+func NewUserService(users ports.UserRepository, encryptKey KeyEncryptor) ports.UserService {
+	return &userService{users: users, encryptKey: encryptKey}
 }
 
-// SetLLMKey stores an encrypted LLM API key and provider for the given user.
-func (s *userService) SetLLMKey(ctx context.Context, userID domain.UserID, provider domain.LLMProvider, apiKey string) error {
+// SetLLMConfig stores the user's LLM provider configuration.
+// The API key is encrypted before storage. For Ollama, apiKey may be empty.
+func (s *userService) SetLLMConfig(ctx context.Context, userID domain.UserID, provider domain.LLMProvider, apiKey, model, baseURL string) error {
 	user, err := s.users.GetByID(ctx, userID)
 	if err != nil {
-		return fmt.Errorf("set llm key: get user: %w", err)
+		return fmt.Errorf("set llm config: get user: %w", err)
 	}
-	user.LLMAPIKey = apiKey
+
+	// Encrypt the API key before storage. Empty keys stay empty.
+	encrypted := ""
+	if apiKey != "" {
+		encrypted, err = s.encryptKey(apiKey)
+		if err != nil {
+			return fmt.Errorf("set llm config: encrypt key: %w", err)
+		}
+	}
+
+	user.LLMAPIKey = encrypted
 	user.LLMProvider = provider
+	user.LLMModel = model
+	user.LLMBaseURL = baseURL
+
 	if err := s.users.Update(ctx, user); err != nil {
-		return fmt.Errorf("set llm key: update user: %w", err)
+		return fmt.Errorf("set llm config: update user: %w", err)
+	}
+	return nil
+}
+
+// SetResume stores the user's resume for Job Coach analysis.
+func (s *userService) SetResume(ctx context.Context, userID domain.UserID, resume string) error {
+	user, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("set resume: get user: %w", err)
+	}
+	user.Resume = resume
+	if err := s.users.Update(ctx, user); err != nil {
+		return fmt.Errorf("set resume: update user: %w", err)
 	}
 	return nil
 }

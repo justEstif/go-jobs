@@ -29,6 +29,7 @@ templ Navbar(loggedIn bool, csrfToken string) {
 					<a href="/" class="btn btn-ghost btn-xs">Jobs</a>
 					<a href="/pipeline" class="btn btn-ghost btn-xs">Pipeline</a>
 					<a href="/companies" class="btn btn-ghost btn-xs">Companies</a>
+					<a href="/settings" class="btn btn-ghost btn-xs">Settings</a>
 					<form method="post" action="/logout" class="inline">
 						<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
 						<button type="submit" class="btn btn-ghost btn-xs">Sign out</button>

@@ -1,0 +1,155 @@
+package components
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/justestif/go-jobs/internal/core/domain"
+)
+
+// SettingsPage renders the user settings page with resume and LLM provider config.
+templ SettingsPage(user domain.User, saved string, loggedIn bool, csrfToken string) {
+	@Layout("Settings", loggedIn, csrfToken) {
+		<div class="max-w-2xl">
+			<h1 class="text-xl font-semibold mb-6">Settings</h1>
+
+			if saved != "" {
+				<div class="mb-4 text-sm text-success">{ saved }</div>
+			}
+
+			<!-- Resume -->
+			<section class="bg-base-100 border border-base-200 rounded-sm px-5 py-4 mb-6">
+				<h2 class="text-sm font-medium uppercase tracking-wide text-base-content/50 mb-1">Resume</h2>
+				<p class="text-xs text-base-content/40 mb-3">
+					Paste your resume as plain text or markdown. Job Coach uses this to analyze your fit for specific roles.
+				</p>
+				<form method="POST" action="/settings/resume">
+					<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+					<textarea
+						name="resume"
+						class="textarea textarea-bordered w-full h-48 text-sm font-mono leading-relaxed"
+						placeholder="# Jane Doe&#10;jane@example.com | github.com/janedoe&#10;&#10;## Experience&#10;..."
+					>{ user.Resume }</textarea>
+					<div class="mt-2 flex items-center gap-3">
+						<button type="submit" class="btn btn-sm btn-primary">Save resume</button>
+						if user.Resume != "" {
+							<span class="text-xs text-base-content/40">
+								{ resumeWordCount(user.Resume) } words
+							</span>
+						}
+					</div>
+				</form>
+			</section>
+
+			<!-- LLM Provider -->
+			<section class="bg-base-100 border border-base-200 rounded-sm px-5 py-4 mb-6">
+				<h2 class="text-sm font-medium uppercase tracking-wide text-base-content/50 mb-1">LLM Provider</h2>
+				<p class="text-xs text-base-content/40 mb-3">
+					Configure the AI model for Job Coach. Ollama runs locally — free and private. Cloud providers need an API key.
+				</p>
+				<form method="POST" action="/settings/llm">
+					<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+
+					<div class="grid gap-3 max-w-xs">
+						<!-- Provider -->
+						<div class="form-control">
+							<label class="label py-1"><span class="label-text text-xs font-medium">Provider</span></label>
+							<select name="provider" class="select select-bordered select-sm">
+								<option value="ollama" selected?={ user.LLMProvider == domain.LLMOllama || user.LLMProvider == "" }>Ollama (local)</option>
+								<option value="openai" selected?={ user.LLMProvider == domain.LLMOpenAI }>OpenAI</option>
+							</select>
+						</div>
+
+						<!-- Model -->
+						<div class="form-control">
+							<label class="label py-1"><span class="label-text text-xs font-medium">Model</span></label>
+							<input
+								type="text"
+								name="model"
+								value={ user.LLMModel }
+								placeholder="llama3.1 / gpt-4o-mini"
+								class="input input-bordered input-sm"
+							/>
+							<span class="text-xs text-base-content/40 mt-1">Leave empty for provider default</span>
+						</div>
+
+						<!-- Base URL -->
+						<div class="form-control">
+							<label class="label py-1"><span class="label-text text-xs font-medium">Endpoint URL</span></label>
+							<input
+								type="text"
+								name="base_url"
+								value={ user.LLMBaseURL }
+								placeholder="http://localhost:11434"
+								class="input input-bordered input-sm"
+							/>
+							<span class="text-xs text-base-content/40 mt-1">Ollama server address. Ignored for cloud providers.</span>
+						</div>
+
+						<!-- API Key -->
+						<div class="form-control">
+							<label class="label py-1"><span class="label-text text-xs font-medium">API Key</span></label>
+							<input
+								type="password"
+								name="api_key"
+								placeholder={ llmKeyPlaceholder(user) }
+								class="input input-bordered input-sm"
+							/>
+							<span class="text-xs text-base-content/40 mt-1">Cloud providers only. Encrypted at rest. Leave empty to keep current key.</span>
+						</div>
+					</div>
+
+					<div class="mt-4">
+						<button type="submit" class="btn btn-sm btn-primary">Save LLM settings</button>
+					</div>
+				</form>
+			</section>
+		</div>
+	}
+}
+
+// llmKeyPlaceholder returns a masked placeholder based on whether a key is stored.
+func llmKeyPlaceholder(user domain.User) string {
+	if user.LLMAPIKey != "" {
+		return "key configured"
+	}
+	return "sk-... (not needed for Ollama)"
+}
+
+// resumeWordCount returns a word count string for the resume.
+func resumeWordCount(resume string) string {
+	words := len(strings.Fields(resume))
+	if words == 1 {
+		return "1 word"
+	}
+	return fmt.Sprintf("%d words", words)
+}
+
+// CoachResultPanel renders the analysis result returned by htmx after an analyze request.
+templ CoachResultPanel(result string, modelUsed string, jobID string, csrfToken string) {
+	<div class="bg-base-100 border border-base-200 rounded-sm px-5 py-4">
+		<div class="flex items-center justify-between mb-3">
+			<h2 class="text-sm font-medium uppercase tracking-wide text-base-content/50">Job Coach Analysis</h2>
+			<div class="flex items-center gap-2">
+				<span class="text-xs text-base-content/40">cached</span>
+				<form
+					method="POST"
+					action={ "/jobs/" + jobID + "/analyze" }
+					hx-post={ "/jobs/" + jobID + "/analyze?refresh=true" }
+					hx-target="#coach-panel"
+					hx-swap="innerHTML"
+					hx-disabled-elt="button"
+				>
+					<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+					<button type="submit" class="btn btn-xs btn-ghost">Re-analyze</button>
+				</form>
+			</div>
+		</div>
+		<div class="prose prose-sm max-w-none text-base-content/80">
+			@templ.Raw(renderJobDescriptionHTML(result))
+		</div>
+		if modelUsed != "" {
+			<p class="text-xs text-base-content/30 mt-4 pt-3 border-t border-base-200">{ modelUsed }</p>
+		}
+	</div>
+}
