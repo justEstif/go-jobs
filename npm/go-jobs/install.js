@@ -26,7 +26,7 @@ if (!plat) {
 }
 
 const exe = process.platform === "win32" ? `${BINARY}.exe` : BINARY;
-const archiveName = `jobs_v${VERSION}_${plat.os}_${plat.arch}${plat.ext}`;
+const archiveName = `jobs-cli_v${VERSION}_${plat.os}_${plat.arch}${plat.ext}`;
 const url = `https://github.com/${REPO}/releases/download/v${VERSION}/${archiveName}`;
 const binDir = path.join(__dirname, "bin");
 const tmpFile = path.join(os.tmpdir(), archiveName);
@@ -83,13 +83,8 @@ download(url, tmpFile, (err) => {
         `$zip.Dispose()`
       ]);
     } else {
-      // Unix: extract all files then clean up
+      // Unix: extract CLI binary
       execFileSync("tar", ["-xzf", tmpFile, "-C", binDir]);
-      // Remove jobs-server if it exists
-      const serverPath = path.join(binDir, "jobs-server");
-      if (fs.existsSync(serverPath)) {
-        fs.unlinkSync(serverPath);
-      }
     }
     fs.chmodSync(outPath, 0o755);
     fs.unlinkSync(tmpFile);

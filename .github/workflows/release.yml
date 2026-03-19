@@ -10,8 +10,12 @@ permissions:
   id-token: write
 
 jobs:
-  build:
-    name: Build binaries
+  # ----------------------------------------------------------------
+  # CLI binary — lightweight, no CSS/templ/DaisyUI needed.
+  # cmd/cli/ doesn't import web, components, or HTTP adapter packages.
+  # ----------------------------------------------------------------
+  build-cli:
+    name: Build CLI (${{ matrix.goos }}/${{ matrix.goarch }})
     runs-on: ubuntu-latest
 
     strategy:
@@ -37,28 +41,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Install Tailwind CSS
-        if: matrix.goos != 'windows'
-        run: |
-          curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/download/v4.2.1/tailwindcss-linux-x64
-          chmod +x tailwindcss-linux-x64
-          mv tailwindcss-linux-x64 tailwindcss
-
-      - name: Install DaisyUI
-        if: matrix.goos != 'windows'
-        run: |
-          curl -sLO https://github.com/saadeghi/daisyui/releases/download/v5.5.19/daisyui.mjs
-          curl -sLO https://github.com/saadeghi/daisyui/releases/download/v5.5.19/daisyui-theme.mjs
-
-      - name: Build CSS
-        if: matrix.goos != 'windows'
-        run: ./tailwindcss -i styles/input.css -o web/static/css/tailwind.css --minify
-
-      - name: Generate templ files
-        run: |
-          go install github.com/a-h/templ/cmd/templ@latest
-          templ generate
-
       - name: Build CLI
         env:
           GOOS: ${{ matrix.goos }}
@@ -77,8 +59,78 @@ jobs:
             -o "${OUTDIR}/go-jobs${EXT}" \
             ./cmd/cli/
 
-      - name: Build Server (if not windows)
-        if: matrix.goos != 'windows'
+      - name: Archive
+        run: |
+          OS=${{ matrix.goos }}
+          ARCH=${{ matrix.goarch }}
+          TAG=${{ github.ref_name }}
+          OUTDIR=dist/${OS}_${ARCH}
+          ARCHIVE=jobs-cli_${TAG}_${OS}_${ARCH}
+
+          if [ "$OS" = "windows" ]; then
+            cd "$OUTDIR" && zip "../../${ARCHIVE}.zip" ./* && cd -
+          else
+            tar -czf "${ARCHIVE}.tar.gz" -C "$OUTDIR" .
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: |
+            *.tar.gz
+            *.zip
+          retention-days: 1
+
+  # ----------------------------------------------------------------
+  # Server binary — needs Tailwind CSS, DaisyUI, and templ generate.
+  # Only built for linux and darwin (server never runs on Windows).
+  # ----------------------------------------------------------------
+  build-server:
+    name: Build Server (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install Tailwind CSS
+        run: |
+          curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/download/v4.2.1/tailwindcss-linux-x64
+          chmod +x tailwindcss-linux-x64
+          mv tailwindcss-linux-x64 tailwindcss
+
+      - name: Install DaisyUI
+        run: |
+          curl -sLO https://github.com/saadeghi/daisyui/releases/download/v5.5.19/daisyui.mjs
+          curl -sLO https://github.com/saadeghi/daisyui/releases/download/v5.5.19/daisyui-theme.mjs
+
+      - name: Build CSS
+        run: ./tailwindcss -i styles/input.css -o web/static/css/tailwind.css --minify
+
+      - name: Generate templ files
+        run: |
+          go install github.com/a-h/templ/cmd/templ@latest
+          templ generate
+
+      - name: Build Server
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
@@ -101,28 +153,20 @@ jobs:
           ARCH=${{ matrix.goarch }}
           TAG=${{ github.ref_name }}
           OUTDIR=dist/${OS}_${ARCH}
-          ARCHIVE=jobs_${TAG}_${OS}_${ARCH}
+          ARCHIVE=jobs-server_${TAG}_${OS}_${ARCH}
 
-          if [ "$OS" = "windows" ]; then
-            # Windows: only CLI
-            cd "$OUTDIR" && zip "../../${ARCHIVE}.zip" ./* && cd -
-          else
-            # Unix: both CLI and server
-            tar -czf "${ARCHIVE}.tar.gz" -C "$OUTDIR" .
-          fi
+          tar -czf "${ARCHIVE}.tar.gz" -C "$OUTDIR" .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: jobs_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}
-          path: |
-            *.tar.gz
-            *.zip
+          name: server_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: "*.tar.gz"
           retention-days: 1
 
   release:
     name: Create GitHub release
-    needs: build
+    needs: [build-cli, build-server]
     runs-on: ubuntu-latest
 
     steps:
