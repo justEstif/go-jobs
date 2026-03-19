@@ -37,6 +37,17 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Install Tailwind CSS
+        run: |
+          curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/download/v4.2.1/tailwindcss-linux-x64
+          chmod +x tailwindcss-linux-x64
+          mv tailwindcss-linux-x64 tailwindcss
+
+      - name: Install DaisyUI
+        run: |
+          curl -sLO https://github.com/saadeghi/daisyui/releases/download/v5.5.19/daisyui.mjs
+          curl -sLO https://github.com/saadeghi/daisyui/releases/download/v5.5.19/daisyui-theme.mjs
+
       - name: Build CSS
         run: ./tailwindcss -i styles/input.css -o web/static/css/tailwind.css --minify
 
