@@ -51,5 +51,5 @@ daisyui-theme.mjs
 # Database
 *.db
 *.sqlite
-jobs
+/jobs
 /scripts/.env.production

@@ -1,2 +1,2 @@
 web: serve
-worker: scrape --loop
+worker: scrape --loop --enrich

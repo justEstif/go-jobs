@@ -297,13 +297,6 @@ func runHTTPServer(
 		port = "3000"
 	}
 
-	scrapeInterval := parseDurationEnv("SCRAPE_INTERVAL", 6*time.Hour)
-	enrichLimit := parseIntEnv("ENRICH_LIMIT", 1000)
-
-	schedulerCtx, schedulerCancel := context.WithCancel(ctx)
-	defer schedulerCancel()
-	go runScheduledPipeline(schedulerCtx, scrapeService, enrichService, scrapeInterval, enrichLimit)
-
 	server := &http.Server{Addr: ":" + port, Handler: r}
 
 	errCh := make(chan error, 1)
@@ -316,7 +309,6 @@ func runHTTPServer(
 	defer signal.Stop(sigCh)
 
 	log.Printf("Server starting on http://localhost:%s", port)
-	log.Printf("Scheduler enabled: scrape+enrich every %s (enrich_limit=%d)", scrapeInterval, enrichLimit)
 
 	select {
 	case <-ctx.Done():
@@ -337,35 +329,6 @@ func runHTTPServer(
 	}
 
 	return nil
-}
-
-func runScheduledPipeline(ctx context.Context, scrape ports.ScrapeService, enrich ports.EnrichService, interval time.Duration, enrichLimit int) {
-	run := func() {
-		if err := scrape.Run(ctx); err != nil {
-			log.Printf("scheduler: scrape failed: %v", err)
-			return
-		}
-		enriched, failed, err := enrich.Run(ctx, enrichLimit)
-		if err != nil {
-			log.Printf("scheduler: enrich failed: %v", err)
-			return
-		}
-		log.Printf("scheduler: enrich complete enriched=%d failed=%d", enriched, failed)
-	}
-
-	run()
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			log.Printf("scheduler: stopped")
-			return
-		case <-ticker.C:
-			run()
-		}
-	}
 }
 
 func parseDurationEnv(name string, fallback time.Duration) time.Duration {

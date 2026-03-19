@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -18,9 +19,11 @@ import (
 // the entry point used by the Dokku worker process defined in the Procfile.
 func newScrapeCmd(services Services) *cobra.Command {
 	var (
-		source   string
-		loop     bool
-		interval time.Duration
+		source      string
+		loop        bool
+		interval    time.Duration
+		enrich      bool
+		enrichLimit int
 	)
 
 	// defaultInterval reads SCRAPE_INTERVAL from the environment so the Procfile
@@ -29,6 +32,13 @@ func newScrapeCmd(services Services) *cobra.Command {
 	if v := os.Getenv("SCRAPE_INTERVAL"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			defaultInterval = d
+		}
+	}
+
+	defaultEnrichLimit := 1000
+	if v := os.Getenv("ENRICH_LIMIT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			defaultEnrichLimit = n
 		}
 	}
 
@@ -62,13 +72,22 @@ Pass --loop to run continuously as a daemon (used by the Dokku worker process).`
 				run, err := services.Scrape.LatestRun(ctx)
 				if err != nil {
 					log.Printf("warning: could not retrieve run stats: %v", err)
-					return
+				} else {
+					fmt.Printf("Scrape complete: added=%d updated=%d removed=%d\n",
+						run.JobsAdded, run.JobsUpdated, run.JobsRemoved)
+					if run.Error != "" {
+						fmt.Printf("  Error: %s\n", run.Error)
+					}
 				}
 
-				fmt.Printf("Scrape complete: added=%d updated=%d removed=%d\n",
-					run.JobsAdded, run.JobsUpdated, run.JobsRemoved)
-				if run.Error != "" {
-					fmt.Printf("  Error: %s\n", run.Error)
+				if enrich {
+					fmt.Printf("Starting enrichment pipeline (limit=%d)...\n", enrichLimit)
+					enriched, failed, err := services.Enrich.Run(ctx, enrichLimit)
+					if err != nil {
+						log.Printf("enrich failed: %v", err)
+						return
+					}
+					fmt.Printf("Enrichment complete: enriched=%d failed=%d\n", enriched, failed)
 				}
 			}
 
@@ -97,5 +116,7 @@ Pass --loop to run continuously as a daemon (used by the Dokku worker process).`
 	cmd.Flags().StringVar(&source, "source", "", "Scrape a single ATS source (greenhouse|lever|ashby)")
 	cmd.Flags().BoolVar(&loop, "loop", false, "Run continuously, re-scraping on --interval")
 	cmd.Flags().DurationVar(&interval, "interval", defaultInterval, "Interval between scrape runs (used with --loop); also reads SCRAPE_INTERVAL env")
+	cmd.Flags().BoolVar(&enrich, "enrich", false, "Run enrichment pipeline after each scrape")
+	cmd.Flags().IntVar(&enrichLimit, "enrich-limit", defaultEnrichLimit, "Max jobs to enrich per run; also reads ENRICH_LIMIT env")
 	return cmd
 }
