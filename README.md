@@ -37,6 +37,8 @@ It pulls postings from ATS platforms like Greenhouse, Lever, and Ashby, stores t
 
 ## CLI
 
+[![npm](https://img.shields.io/npm/v/@justestif/go-jobs)](https://www.npmjs.com/package/@justestif/go-jobs)
+
 Install the CLI via npm and use it against the live app or your own instance:
 
 ```bash
