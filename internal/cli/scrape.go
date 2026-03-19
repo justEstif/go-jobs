@@ -4,13 +4,24 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 )
 
-// newScrapeCmd returns the `go-jobs scrape` command.
+// newScrapeCmd returns the `jobs scrape` command.
+//
+// With --loop the command runs continuously, re-scraping on --interval. This is
+// the entry point used by the Dokku worker process defined in the Procfile.
 func newScrapeCmd(services Services) *cobra.Command {
-	var source string
+	var (
+		source   string
+		loop     bool
+		interval time.Duration
+	)
 
 	cmd := &cobra.Command{
 		Use:   "scrape",
@@ -18,44 +29,64 @@ func newScrapeCmd(services Services) *cobra.Command {
 		Long: `Scrape discovers companies from the Simplify README sources,
 then fetches open job postings from Greenhouse, Lever, and Ashby.
 
-By default all three platforms are scraped. Use --source to restrict to one.`,
-		Example: `  go-jobs scrape
-  go-jobs scrape --source greenhouse
-  go-jobs scrape --source lever
-  go-jobs scrape --source ashby`,
+By default all three platforms are scraped. Use --source to restrict to one.
+
+Pass --loop to run continuously as a daemon (used by the Dokku worker process).`,
+		Example: `  jobs scrape
+  jobs scrape --source greenhouse
+  jobs scrape --loop --interval 6h`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := context.Background()
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
 
 			if source != "" {
-				fmt.Printf("Scraping source: %s\n", source)
-				// TODO M1+: filter to a single scraper by source
-				// For now, Run() scrapes all — single-source filtering is a convenience
-				// feature that requires the service to accept a source filter.
-				log.Printf("--source flag noted but full pipeline will run for M1")
+				log.Printf("--source flag noted but full pipeline will run (single-source filter is post-M1)")
 			}
 
-			fmt.Println("Starting scrape pipeline...")
-			if err := services.Scrape.Run(ctx); err != nil {
-				return fmt.Errorf("scrape failed: %w", err)
+			runOnce := func() {
+				fmt.Println("Starting scrape pipeline...")
+				if err := services.Scrape.Run(ctx); err != nil {
+					log.Printf("scrape failed: %v", err)
+					return
+				}
+
+				run, err := services.Scrape.LatestRun(ctx)
+				if err != nil {
+					log.Printf("warning: could not retrieve run stats: %v", err)
+					return
+				}
+
+				fmt.Printf("Scrape complete: added=%d updated=%d removed=%d\n",
+					run.JobsAdded, run.JobsUpdated, run.JobsRemoved)
+				if run.Error != "" {
+					fmt.Printf("  Error: %s\n", run.Error)
+				}
 			}
 
-			run, err := services.Scrape.LatestRun(ctx)
-			if err != nil {
-				log.Printf("warning: could not retrieve run stats: %v", err)
+			runOnce()
+
+			if !loop {
 				return nil
 			}
 
-			fmt.Printf("Scrape complete:\n")
-			fmt.Printf("  Jobs added:   %d\n", run.JobsAdded)
-			fmt.Printf("  Jobs updated: %d\n", run.JobsUpdated)
-			fmt.Printf("  Jobs removed: %d\n", run.JobsRemoved)
-			if run.Error != "" {
-				fmt.Printf("  Error: %s\n", run.Error)
+			log.Printf("scrape: loop mode — re-scraping every %s (SIGTERM to stop)", interval)
+			ticker := time.NewTicker(interval)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ctx.Done():
+					log.Println("scrape: shutting down")
+					return nil
+				case <-ticker.C:
+					runOnce()
+				}
 			}
-			return nil
 		},
 	}
 
 	cmd.Flags().StringVar(&source, "source", "", "Scrape a single ATS source (greenhouse|lever|ashby)")
+	cmd.Flags().BoolVar(&loop, "loop", false, "Run continuously, re-scraping on --interval")
+	cmd.Flags().DurationVar(&interval, "interval", 6*time.Hour, "Interval between scrape runs (used with --loop)")
 	return cmd
 }

@@ -4,13 +4,19 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/justestif/go-jobs/internal/core/domain"
 	"github.com/justestif/go-jobs/internal/core/ports"
 )
+
+// defaultWorkers is the number of companies scraped concurrently.
+const defaultWorkers = 20
 
 // scrapeService implements ports.ScrapeService.
 type scrapeService struct {
@@ -78,6 +84,14 @@ func (s *scrapeService) Run(ctx context.Context) error {
 		return fmt.Errorf("scrape: list active companies: %w", err)
 	}
 
+	var (
+		totalAdded   atomic.Int64
+		totalUpdated atomic.Int64
+		totalRemoved atomic.Int64
+		wg           sync.WaitGroup
+		sem          = semaphore.NewWeighted(defaultWorkers)
+	)
+
 	for _, company := range companies {
 		if company.ScrapeType == domain.ScrapeHeadless {
 			log.Printf("scrape: skipping headless company %q (post-MVP)", company.Name)
@@ -90,16 +104,33 @@ func (s *scrapeService) Run(ctx context.Context) error {
 			continue
 		}
 
-		added, updated, removed, err := s.scrapeCompany(ctx, company, scraper)
-		if err != nil {
-			log.Printf("scrape: company %q failed: %v", company.Name, err)
-			continue
+		// Acquire a worker slot before launching the goroutine.
+		if err := sem.Acquire(ctx, 1); err != nil {
+			// Context cancelled — stop launching new work.
+			break
 		}
 
-		run.JobsAdded += added
-		run.JobsUpdated += updated
-		run.JobsRemoved += removed
+		wg.Add(1)
+		go func(c domain.Company, sc ports.JobScraper) {
+			defer wg.Done()
+			defer sem.Release(1)
+
+			added, updated, removed, err := s.scrapeCompany(ctx, c, sc)
+			if err != nil {
+				log.Printf("scrape: company %q failed: %v", c.Name, err)
+				return
+			}
+			totalAdded.Add(int64(added))
+			totalUpdated.Add(int64(updated))
+			totalRemoved.Add(int64(removed))
+		}(company, scraper)
 	}
+
+	wg.Wait()
+
+	run.JobsAdded = int(totalAdded.Load())
+	run.JobsUpdated = int(totalUpdated.Load())
+	run.JobsRemoved = int(totalRemoved.Load())
 
 	now := time.Now()
 	run.FinishedAt = &now
