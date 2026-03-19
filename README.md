@@ -1,5 +1,7 @@
 # go-jobs
 
+**Live app: [jobs.estifanos.cc](https://jobs.estifanos.cc/)**
+
 go-jobs is a self-hosted job aggregator for people who want a focused startup job search without relying on a SaaS job board.
 
 It pulls postings from ATS platforms like Greenhouse, Lever, and Ashby, stores them locally, and gives you a fast web UI plus a CLI to search, filter, and track applications in one place.
