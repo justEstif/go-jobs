@@ -94,21 +94,22 @@ func (r *JobRepo) Search(ctx context.Context, filters domain.SearchFilters, user
 	}
 
 	// Convert domain types to the query parameter types.
-	roleTypes := make([]string, len(filters.RoleTypes))
-	for i, rt := range filters.RoleTypes {
-		roleTypes[i] = string(rt)
+	// Use nil (not empty slice) so array_length($n, 1) IS NULL disables the filter.
+	var roleTypes []string
+	for _, rt := range filters.RoleTypes {
+		roleTypes = append(roleTypes, string(rt))
 	}
-	seniorities := make([]string, len(filters.Seniorities))
-	for i, s := range filters.Seniorities {
-		seniorities[i] = string(s)
+	var seniorities []string
+	for _, s := range filters.Seniorities {
+		seniorities = append(seniorities, string(s))
 	}
-	remotePolicies := make([]string, len(filters.RemotePolicy))
-	for i, rp := range filters.RemotePolicy {
-		remotePolicies[i] = string(rp)
+	var remotePolicies []string
+	for _, rp := range filters.RemotePolicy {
+		remotePolicies = append(remotePolicies, string(rp))
 	}
-	companyIDs := make([]pgtype.UUID, len(filters.CompanyIDs))
-	for i, id := range filters.CompanyIDs {
-		companyIDs[i] = uuidToPg(id)
+	var companyIDs []pgtype.UUID
+	for _, id := range filters.CompanyIDs {
+		companyIDs = append(companyIDs, uuidToPg(id))
 	}
 
 	rows, err := r.q.SearchJobs(ctx, queries.SearchJobsParams{

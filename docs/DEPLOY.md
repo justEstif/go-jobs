@@ -120,6 +120,7 @@ $EDITOR .env.production
 ```
 
 This will:
+
 - Create the Dokku app and set the domain
 - Create and link a Postgres database
 - Set `PORT`, `BASE_URL`, and all secrets from `.env.production`
@@ -160,9 +161,9 @@ ssh dokku@$DOKKU_HOST letsencrypt:enable go-jobs
 
 The app runs as two separate Dokku process types defined in `Procfile`:
 
-| Process | Command | Role |
-|---------|---------|------|
-| `web` | `serve` | HTTP server only — no background work |
+| Process  | Command                  | Role                                                                                                         |
+| -------- | ------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `web`    | `serve`                  | HTTP server only — no background work                                                                        |
 | `worker` | `scrape --loop --enrich` | Scrapes all companies (20 concurrent goroutines), then enriches un-tagged jobs, repeats on `SCRAPE_INTERVAL` |
 
 Scale them independently:
@@ -212,14 +213,14 @@ ssh dokku@$DOKKU_HOST config:set go-jobs ENRICH_LIMIT=2000
 
 ## Environment variable reference
 
-| Variable | Required | Description |
-|---|---|---|
-| `DATABASE_URL` | ✅ | Postgres connection string. Set automatically by Dokku; set manually otherwise. |
-| `PORT` | ✅ | HTTP listen port. Use `3000`. |
-| `BASE_URL` | ✅ | Public URL of the app, no trailing slash. e.g. `https://jobs.yourdomain.com` |
-| `CSRF_KEY` | ✅ | 32 hex chars (`openssl rand -hex 16`). Signs CSRF cookies. |
-| `SESSION_SECRET` | ✅ | 32 hex chars (`openssl rand -hex 16`). Signs session cookies. |
-| `ENCRYPTION_KEY` | ✅ | 64 hex chars (`openssl rand -hex 32`). AES-256-GCM key for stored LLM API keys. |
-| `POSTGRES_PASSWORD` | docker-compose only | Postgres superuser password for the managed container. |
-| `SCRAPE_INTERVAL` | ❌ | How often the worker re-scrapes. Default: `6h`. Any Go duration string (`1h`, `30m`, …). |
-| `ENRICH_LIMIT` | ❌ | Max jobs enriched per cycle. Default: `1000`. |
+| Variable            | Required            | Description                                                                              |
+| ------------------- | ------------------- | ---------------------------------------------------------------------------------------- |
+| `DATABASE_URL`      | ✅                  | Postgres connection string. Set automatically by Dokku; set manually otherwise.          |
+| `PORT`              | ✅                  | HTTP listen port. Use `3000`.                                                            |
+| `BASE_URL`          | ✅                  | Public URL of the app, no trailing slash. e.g. `https://jobs.yourdomain.com`             |
+| `CSRF_KEY`          | ✅                  | 32 hex chars (`openssl rand -hex 16`). Signs CSRF cookies.                               |
+| `SESSION_SECRET`    | ✅                  | 32 hex chars (`openssl rand -hex 16`). Signs session cookies.                            |
+| `ENCRYPTION_KEY`    | ✅                  | 64 hex chars (`openssl rand -hex 32`). AES-256-GCM key for stored LLM API keys.          |
+| `POSTGRES_PASSWORD` | docker-compose only | Postgres superuser password for the managed container.                                   |
+| `SCRAPE_INTERVAL`   | ❌                  | How often the worker re-scrapes. Default: `6h`. Any Go duration string (`1h`, `30m`, …). |
+| `ENRICH_LIMIT`      | ❌                  | Max jobs enriched per cycle. Default: `1000`.                                            |
