@@ -81,7 +81,7 @@ func runRemoteCLI(baseURL string) {
 		Session:     authClient,
 		Search:      httpclient.NewSearchClient(c),
 		Application: httpclient.NewApplicationClient(c),
-		// Scrape, Enrich, Serve are not available in remote mode.
+		// Scrape, Serve are not available in remote mode.
 	}
 
 	rootCmd := cli.NewRootCmd(cliServices)
@@ -143,7 +143,6 @@ func setupLocalServices(ctx context.Context) (cli.Services, error) {
 		scrapeRunRepo,
 		seeder,
 	)
-	enrichService := services.NewEnrichService(jobRepo, enricher)
 	searchService := services.NewJobSearchService(jobRepo)
 	applicationService := services.NewApplicationService(userJobRepo, jobRepo)
 	authService := services.NewAuthService(userRepo, userRepo)
@@ -157,14 +156,14 @@ func setupLocalServices(ctx context.Context) (cli.Services, error) {
 	}
 
 	return cli.Services{
-		Scrape:      scrapeService,
-		Enrich:      enrichService,
-		Search:      searchService,
-		Application: applicationService,
-		Session:     userRepo,
-		Auth:        authService,
-		User:        userService,
-		Coach:       coachService,
-		Serve:       serve,
+		Scrape:       scrapeService,
+		Search:       searchService,
+		Application:  applicationService,
+		Session:      userRepo,
+		Auth:         authService,
+		User:         userService,
+		Coach:        coachService,
+		Serve:        serve,
+		BackfillTags: services.BackfillTagsFn(jobRepo, enricher),
 	}, nil
 }

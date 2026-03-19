@@ -155,10 +155,24 @@ func (s *scrapeService) scrapeCompany(ctx context.Context, company domain.Compan
 	for _, raw := range rawJobs {
 		seenIDs = append(seenIDs, raw.ExternalID)
 
-		_, err := s.jobs.Upsert(ctx, company.ID, raw, company.ATSType)
+		jobID, err := s.jobs.Upsert(ctx, company.ID, raw, company.ATSType)
 		if err != nil {
 			log.Printf("scrape: upsert job %q for %q: %v", raw.ExternalID, company.Name, err)
 			continue
+		}
+
+		if s.enricher != nil {
+			tags, enrichErr := s.enricher.Enrich(ctx, domain.Job{
+				ID:          jobID,
+				Title:       raw.Title,
+				Description: raw.Description,
+				Location:    raw.Location,
+			})
+			if enrichErr != nil {
+				log.Printf("scrape: enrich job %s: %v", jobID, enrichErr)
+			} else if saveErr := s.jobs.SaveTags(ctx, tags); saveErr != nil {
+				log.Printf("scrape: save tags for job %s: %v", jobID, saveErr)
+			}
 		}
 
 		// For M1, count every upsert as "updated". A future enhancement could

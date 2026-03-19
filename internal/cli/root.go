@@ -10,15 +10,15 @@ import (
 
 // Services holds the driving-port implementations injected by the composition root.
 type Services struct {
-	Scrape      ports.ScrapeService
-	Enrich      ports.EnrichService
-	Search      ports.JobSearchService
-	Application ports.ApplicationService
-	Session     ports.SessionRepository
-	Auth        ports.AuthService
-	User        ports.UserService
-	Coach       ports.JobCoachService
-	Serve       func(ctx context.Context) error
+	Scrape       ports.ScrapeService
+	Search       ports.JobSearchService
+	Application  ports.ApplicationService
+	Session      ports.SessionRepository
+	Auth         ports.AuthService
+	User         ports.UserService
+	Coach        ports.JobCoachService
+	Serve        func(ctx context.Context) error
+	BackfillTags func(ctx context.Context, limit int) (enriched, failed int, err error)
 }
 
 // NewRootCmd builds the cobra root command with all sub-commands attached.
@@ -41,7 +41,7 @@ func NewRootCmd(services Services) *cobra.Command {
 	root.PersistentFlags().String("base-url", "", `go-jobs server URL (overrides BASE_URL env; default: https://jobs.estifanos.cc; use "local" for direct DB access)`)
 
 	root.AddCommand(newScrapeCmd(services))
-	root.AddCommand(newEnrichCmd(services))
+	root.AddCommand(newBackfillTagsCmd(services))
 	root.AddCommand(newSearchCmd(services))
 	root.AddCommand(newInterestedCmd(services))
 	root.AddCommand(newApplyCmd(services))

@@ -37,12 +37,12 @@ func main() {
 	// Remote mode detection
 	//
 	// Check --base-url flag and BASE_URL env before booting any adapters.
-	// Commands that require direct DB access (serve, scrape, enrich) always
+	// Commands that require direct DB access (serve, scrape) always
 	// run in local mode regardless of base URL.
 	// ----------------------------------------------------------------
 	baseURL := resolveBaseURL(os.Args[1:])
 	cmd := firstCommand(os.Args[1:])
-	localOnlyCmd := cmd == "serve" || cmd == "scrape" || cmd == "enrich"
+	localOnlyCmd := cmd == "serve" || cmd == "scrape" || cmd == "backfill-tags"
 	remoteMode := baseURL != "" && !localOnlyCmd
 
 	if remoteMode {
@@ -104,7 +104,6 @@ func main() {
 		scrapeRunRepo,
 		seeder,
 	)
-	enrichService := services.NewEnrichService(jobRepo, enricher)
 	searchService := services.NewJobSearchService(jobRepo)
 	applicationService := services.NewApplicationService(userJobRepo, jobRepo)
 	authService := services.NewAuthService(userRepo, userRepo)
@@ -116,7 +115,6 @@ func main() {
 		return runHTTPServer(
 			ctx,
 			scrapeService,
-			enrichService,
 			authService,
 			searchService,
 			applicationService,
@@ -134,16 +132,17 @@ func main() {
 		return
 	}
 
+	backfillTags := services.BackfillTagsFn(jobRepo, enricher)
 	cliServices := cli.Services{
-		Scrape:      scrapeService,
-		Enrich:      enrichService,
-		Search:      searchService,
-		Application: applicationService,
-		Session:     userRepo,
-		Auth:        authService,
-		User:        userService,
-		Coach:       coachService,
-		Serve:       serve,
+		Scrape:       scrapeService,
+		Search:       searchService,
+		Application:  applicationService,
+		Session:      userRepo,
+		Auth:         authService,
+		User:         userService,
+		Coach:        coachService,
+		Serve:        serve,
+		BackfillTags: backfillTags,
 	}
 	rootCmd := cli.NewRootCmd(cliServices)
 	if err := rootCmd.Execute(); err != nil {
@@ -169,7 +168,7 @@ func runRemoteCLI(baseURL string) {
 		Session:     authClient,
 		Search:      httpclient.NewSearchClient(c),
 		Application: httpclient.NewApplicationClient(c),
-		// Scrape, Enrich, Serve are not available in remote mode.
+		// Scrape, Serve are not available in remote mode.
 	}
 
 	rootCmd := cli.NewRootCmd(cliServices)
@@ -223,7 +222,6 @@ func firstCommand(args []string) string {
 func runHTTPServer(
 	ctx context.Context,
 	scrapeService ports.ScrapeService,
-	enrichService ports.EnrichService,
 	authService ports.AuthService,
 	searchService ports.JobSearchService,
 	applicationService ports.ApplicationService,

@@ -126,13 +126,3 @@ type JobCoachService interface {
 	BuildCaseStudyPrompt(ctx context.Context, userID domain.UserID, projectDescription string) (systemPrompt, userPrompt string, err error)
 }
 
-// EnrichService runs the enrichment pipeline over un-tagged jobs.
-//
-// It fetches up to limit un-enriched jobs, runs each through the JobEnricher,
-// and persists the resulting tags. Errors on individual jobs are logged and
-// skipped — a single failing enrichment does not abort the batch.
-type EnrichService interface {
-	// Run enriches up to limit un-tagged jobs. Returns the count of
-	// successfully enriched jobs and jobs that failed enrichment.
-	Run(ctx context.Context, limit int) (enriched, failed int, err error)
-}
