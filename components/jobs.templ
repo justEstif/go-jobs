@@ -38,6 +38,18 @@ templ JobsListPage(jobs []domain.Job, filters domain.SearchFilters, loggedIn boo
 				</label>
 				<!-- Search bar -->
 				<form method="GET" action="/" class="mb-4 flex flex-wrap gap-2 items-center">
+					for _, r := range roleTypeStrings(filters.RoleTypes) {
+						<input type="hidden" name="role" value={ r }/>
+					}
+					for _, s := range seniorityStrings(filters.Seniorities) {
+						<input type="hidden" name="seniority" value={ s }/>
+					}
+					for _, r := range remotePolicyStrings(filters.RemotePolicy) {
+						<input type="hidden" name="remote" value={ r }/>
+					}
+					for _, c := range filters.Countries {
+						<input type="hidden" name="country" value={ c }/>
+					}
 					<input
 						type="text"
 						name="q"

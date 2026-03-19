@@ -101,9 +101,10 @@ func (h *JobSearchHandler) Detail(w http.ResponseWriter, r *http.Request) {
 func parseSearchFilters(r *http.Request) domain.SearchFilters {
 	q := r.URL.Query()
 
+	_, postedWithinPresent := q["posted_within"]
 	f := domain.SearchFilters{
 		Query:            q.Get("q"),
-		PostedWithinDays: parsePostedWithin(q.Get("posted_within")),
+		PostedWithinDays: parsePostedWithin(q.Get("posted_within"), postedWithinPresent),
 		Limit:            parsePerPage(q.Get("per_page")),
 	}
 
@@ -155,7 +156,11 @@ func parsePerPage(raw string) int {
 	}
 }
 
-func parsePostedWithin(raw string) int {
+// parsePostedWithin converts the posted_within query param to a number of days.
+// present=false means the param was absent entirely — default to 1 day (24h).
+// present=true with an empty/unrecognised value means the user explicitly chose
+// "Any time", so no date filter is applied.
+func parsePostedWithin(raw string, present bool) int {
 	switch raw {
 	case "24h":
 		return 1
@@ -166,7 +171,9 @@ func parsePostedWithin(raw string) int {
 	case "90d":
 		return 90
 	default:
-		// Empty or unrecognised value means no date filter.
-		return 0
+		if !present {
+			return 1 // default: last 24 hours
+		}
+		return 0 // explicit "Any time"
 	}
 }
