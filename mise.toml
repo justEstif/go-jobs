@@ -51,7 +51,7 @@ run = 'go run ./cmd/jobs/ {{arg(name="args", var=true)}}'
 [tasks.build]
 description = "Build production binary"
 run = """
-./tailwindcss -i styles/input.css -o static/css/tailwind.css --minify
+./tailwindcss -i styles/input.css -o web/static/css/tailwind.css --minify
 templ generate
 go build -o bin/jobs ./cmd/jobs/
 """

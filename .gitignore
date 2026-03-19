@@ -45,7 +45,8 @@ bun.lockb
 tailwindcss
 daisyui.mjs
 daisyui-theme.mjs
-static/css/tailwind.css
+# web/static/css/tailwind.css is generated at build time and embedded into the
+# binary via go:embed — it does not need to be committed or kept on disk.
 
 # Database
 *.db

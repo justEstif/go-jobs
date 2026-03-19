@@ -33,7 +33,7 @@ RUN go mod download
 COPY . .
 
 # Build: tailwind → templ → go
-RUN tailwindcss -i styles/input.css -o static/css/tailwind.css --minify
+RUN tailwindcss -i styles/input.css -o web/static/css/tailwind.css --minify
 RUN templ generate
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o bin/jobs ./cmd/jobs/
 
@@ -47,10 +47,10 @@ WORKDIR /app
 # ca-certificates from the builder — needed for outbound HTTPS (scrapers, LLM calls)
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-# Copy the binary, migrate CLI, static assets, and migrations
+# Copy the binary, migrate CLI, and migrations.
+# Static assets are embedded in the binary — no static/ directory needed.
 COPY --from=builder /go/bin/migrate /usr/local/bin/migrate
 COPY --from=builder /app/bin/jobs ./jobs
-COPY --from=builder /app/static ./static
 COPY --from=builder /app/migrations ./migrations
 
 EXPOSE 3000

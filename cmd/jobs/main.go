@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -26,6 +27,7 @@ import (
 	"github.com/justestif/go-jobs/internal/core/domain"
 	"github.com/justestif/go-jobs/internal/core/ports"
 	"github.com/justestif/go-jobs/internal/core/services"
+	"github.com/justestif/go-jobs/web"
 )
 
 func main() {
@@ -225,7 +227,11 @@ func runHTTPServer(
 	csrfMw := middleware.SetupCSRF(csrfKey, false)
 
 	r.Use(middleware.OptionalAuth(sm))
-	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	staticFS, err := fs.Sub(web.Static, "static")
+	if err != nil {
+		return fmt.Errorf("failed to create static sub-filesystem: %w", err)
+	}
+	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
 	authH := httphandlers.NewAuthHandler(authService, sm)
 	jobsH := httphandlers.NewJobSearchHandler(searchService, applicationService, userService)

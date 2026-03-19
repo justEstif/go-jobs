@@ -5,9 +5,9 @@ tmp_dir = "tmp"
 [build]
   args_bin = []
   bin = "./tmp/main"
-  cmd = "./tailwindcss -i styles/input.css -o static/css/tailwind.css --minify && templ generate && go build -o ./tmp/main ./cmd/jobs/"
+  cmd = "./tailwindcss -i styles/input.css -o web/static/css/tailwind.css --minify && templ generate && go build -o ./tmp/main ./cmd/jobs/"
   delay = 1000
-  exclude_dir = ["assets", "tmp", "vendor", "testdata", "migrations", "static"]
+  exclude_dir = ["assets", "tmp", "vendor", "testdata", "migrations", "web/static"]
   exclude_file = []
   exclude_regex = ["_test.go", "_templ.go"]
   exclude_unchanged = false
