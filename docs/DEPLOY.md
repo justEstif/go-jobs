@@ -154,6 +154,62 @@ ssh dokku@$DOKKU_HOST letsencrypt:enable go-jobs
 
 ---
 
+## Operations
+
+### Process architecture
+
+The app runs as two separate Dokku process types defined in `Procfile`:
+
+| Process | Command | Role |
+|---------|---------|------|
+| `web` | `serve` | HTTP server only — no background work |
+| `worker` | `scrape --loop --enrich` | Scrapes all companies (20 concurrent goroutines), then enriches un-tagged jobs, repeats on `SCRAPE_INTERVAL` |
+
+Scale them independently:
+
+```bash
+ssh dokku@$DOKKU_HOST ps:scale go-jobs web=1 worker=1
+```
+
+### Force a manual scrape
+
+`dokku run` spins up a one-off container from the current image without touching the running processes:
+
+```bash
+# Scrape + enrich (mirrors what the worker does each cycle)
+ssh dokku@$DOKKU_HOST run go-jobs scrape --enrich
+
+# Scrape only
+ssh dokku@$DOKKU_HOST run go-jobs scrape
+
+# Enrich only (e.g. after adding an LLM key)
+ssh dokku@$DOKKU_HOST run go-jobs enrich
+```
+
+### Watch live logs
+
+```bash
+# All processes
+ssh dokku@$DOKKU_HOST logs go-jobs -t
+
+# Worker only
+ssh dokku@$DOKKU_HOST logs go-jobs --ps worker -t
+```
+
+### Tuning the scrape interval and enrich limit
+
+```bash
+# Change scrape interval to 12 hours (takes effect on next worker restart)
+ssh dokku@$DOKKU_HOST config:set go-jobs SCRAPE_INTERVAL=12h
+
+# Raise enrichment limit per cycle
+ssh dokku@$DOKKU_HOST config:set go-jobs ENRICH_LIMIT=2000
+```
+
+`config:set` triggers an automatic redeploy, so the new value is picked up immediately.
+
+---
+
 ## Environment variable reference
 
 | Variable | Required | Description |
@@ -165,3 +221,5 @@ ssh dokku@$DOKKU_HOST letsencrypt:enable go-jobs
 | `SESSION_SECRET` | ✅ | 32 hex chars (`openssl rand -hex 16`). Signs session cookies. |
 | `ENCRYPTION_KEY` | ✅ | 64 hex chars (`openssl rand -hex 32`). AES-256-GCM key for stored LLM API keys. |
 | `POSTGRES_PASSWORD` | docker-compose only | Postgres superuser password for the managed container. |
+| `SCRAPE_INTERVAL` | ❌ | How often the worker re-scrapes. Default: `6h`. Any Go duration string (`1h`, `30m`, …). |
+| `ENRICH_LIMIT` | ❌ | Max jobs enriched per cycle. Default: `1000`. |
