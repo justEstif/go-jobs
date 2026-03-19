@@ -28,6 +28,9 @@ type ApplicationService interface {
 	ListByStatus(ctx context.Context, userID domain.UserID, status domain.ApplicationStatus) ([]domain.Job, error)
 	// ListPipeline returns all tracked jobs for a user, grouped by status.
 	ListPipeline(ctx context.Context, userID domain.UserID) (map[domain.ApplicationStatus][]domain.Job, error)
+	// ResetTracker deletes all pipeline state (user_jobs) for the user.
+	// Lives here because it operates on UserJobRepository, which ApplicationService owns.
+	ResetTracker(ctx context.Context, userID domain.UserID) error
 }
 
 // ScrapeService orchestrates the full scrape → enrich → persist pipeline.
@@ -43,21 +46,34 @@ type ScrapeService interface {
 	LatestRun(ctx context.Context) (domain.ScrapeRun, error)
 }
 
-// AuthService manages user registration and authentication.
+// AuthService manages user registration, authentication, and password operations.
 //
 // Depends on UserRepository (user records) and SessionRepository (tokens).
 // Authenticate is called by HTTP middleware and CLI on every request to resolve
 // a session cookie/file token to a User — it is the composition point between
 // the two repositories.
+//
+// ChangePassword and DeleteAccount live here (not UserService) because they
+// verify the current password with bcrypt — that is authentication logic.
 type AuthService interface {
 	Register(ctx context.Context, email, password string) (domain.User, error)
 	Login(ctx context.Context, email, password string) (token string, err error)
 	Logout(ctx context.Context, token string) error
 	// Authenticate validates a session token and returns the associated user.
 	Authenticate(ctx context.Context, token string) (domain.User, error)
+	// ChangePassword verifies the current password and sets a new one.
+	// Returns ErrInvalidCredentials if the current password is wrong.
+	ChangePassword(ctx context.Context, userID domain.UserID, currentPassword, newPassword string) error
+	// DeleteAccount permanently removes the user and all associated data.
+	// Requires the current password for confirmation.
+	// Returns ErrInvalidCredentials if the password is wrong.
+	DeleteAccount(ctx context.Context, userID domain.UserID, password string) error
 }
 
-// UserService manages user settings.
+// UserService manages user profile and settings (LLM config, resume).
+//
+// Does not handle password or account deletion — those are auth concerns
+// owned by AuthService.
 type UserService interface {
 	// SetLLMConfig stores the user's LLM provider, model, base URL, and
 	// encrypted API key. The apiKey is encrypted before storage — callers
@@ -68,13 +84,6 @@ type UserService interface {
 	GetByID(ctx context.Context, id domain.UserID) (domain.User, error)
 	// TouchLastVisited updates LastVisitedAt to now. Called on each authenticated session.
 	TouchLastVisited(ctx context.Context, userID domain.UserID) error
-	// ChangePassword verifies the current password and sets a new one.
-	ChangePassword(ctx context.Context, userID domain.UserID, currentPassword, newPassword string) error
-	// ResetTracker deletes all pipeline state (user_jobs) for the user.
-	ResetTracker(ctx context.Context, userID domain.UserID) error
-	// DeleteAccount permanently removes the user and all associated data.
-	// Requires the current password for confirmation.
-	DeleteAccount(ctx context.Context, userID domain.UserID, password string) error
 }
 
 // CompanyService manages per-user company visibility.
@@ -87,6 +96,9 @@ type CompanyService interface {
 	// ListHiddenCompanies returns the full Company objects for companies the user
 	// has hidden. Used to render the blocked-companies list on the settings page.
 	ListHiddenCompanies(ctx context.Context, userID domain.UserID) ([]domain.Company, error)
+	// IsCompanyHidden returns true if the user has hidden the specified company.
+	// Efficient single-row check — avoids fetching the entire hidden list.
+	IsCompanyHidden(ctx context.Context, userID domain.UserID, companyID domain.CompanyID) (bool, error)
 }
 
 // JobCoachService provides LLM-powered resume analysis and optimization.

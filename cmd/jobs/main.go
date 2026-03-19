@@ -108,7 +108,7 @@ func main() {
 	searchService := services.NewJobSearchService(jobRepo)
 	applicationService := services.NewApplicationService(userJobRepo, jobRepo)
 	authService := services.NewAuthService(userRepo, userRepo)
-	userService := services.NewUserService(userRepo, userJobRepo, encryptFn)
+	userService := services.NewUserService(userRepo, encryptFn)
 	companyService := services.NewCompanyService(companyRepo, userCompanyRepo)
 	coachCacheRepo := postgres.NewCoachCacheRepo(postgres.DB)
 	coachService := services.NewJobCoachService(userRepo, jobRepo, companyRepo, coachCacheRepo, llm.NewClient, decryptFn)
@@ -259,10 +259,10 @@ func runHTTPServer(
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
 	authH := httphandlers.NewAuthHandler(authService, sm)
-	jobsH := httphandlers.NewJobSearchHandler(searchService, applicationService, userService, coachService, companyService)
+	jobsH := httphandlers.NewJobSearchHandler(searchService, applicationService, userService, companyService)
 	trackerH := httphandlers.NewTrackerHandler(applicationService, searchService)
 	pipelineH := httphandlers.NewPipelineHandler(applicationService)
-	settingsH := httphandlers.NewSettingsHandler(companyService, userService, sm)
+	settingsH := httphandlers.NewSettingsHandler(authService, applicationService, companyService, sm)
 	coachH := httphandlers.NewCoachHandler(coachService, userService)
 	apiH := api.New(authService, searchService, applicationService)
 

@@ -22,17 +22,15 @@ type JobSearchHandler struct {
 	search      ports.JobSearchService
 	application ports.ApplicationService
 	user        ports.UserService
-	coach       ports.JobCoachService
 	companies   ports.CompanyService
 }
 
 // NewJobSearchHandler constructs a JobSearchHandler.
-func NewJobSearchHandler(search ports.JobSearchService, application ports.ApplicationService, user ports.UserService, coach ports.JobCoachService, companies ports.CompanyService) *JobSearchHandler {
+func NewJobSearchHandler(search ports.JobSearchService, application ports.ApplicationService, user ports.UserService, companies ports.CompanyService) *JobSearchHandler {
 	return &JobSearchHandler{
 		search:      search,
 		application: application,
 		user:        user,
-		coach:       coach,
 		companies:   companies,
 	}
 }
@@ -88,7 +86,7 @@ func (h *JobSearchHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var userJob *domain.UserJob
-	var hasResume, hasLLM, isCompanyHidden bool
+	var coachReady, isCompanyHidden bool
 	userID, loggedIn := middleware.UserIDFromContext(r.Context())
 	if loggedIn {
 		uj, err := h.application.GetUserJob(r.Context(), userID, job.ID)
@@ -96,27 +94,21 @@ func (h *JobSearchHandler) Detail(w http.ResponseWriter, r *http.Request) {
 			userJob = &uj
 		}
 
-		// Check if user has resume and LLM configured for coach feature.
+		// Check coach readiness via domain method.
 		user, err := h.user.GetByID(r.Context(), userID)
 		if err == nil {
-			hasResume = user.Resume != ""
-			hasLLM = user.LLMProvider != ""
+			coachReady = user.IsCoachReady()
 		}
 
-		// Check if user has hidden this company.
-		hidden, err := h.companies.ListHiddenCompanies(r.Context(), userID)
+		// Efficient single-row check instead of fetching all hidden companies.
+		hidden, err := h.companies.IsCompanyHidden(r.Context(), userID, job.CompanyID)
 		if err == nil {
-			for _, c := range hidden {
-				if c.ID == job.CompanyID {
-					isCompanyHidden = true
-					break
-				}
-			}
+			isCompanyHidden = hidden
 		}
 	}
 
 	csrfToken := csrf.Token(r)
-	components.JobDetailPage(job, userJob, loggedIn, csrfToken, hasResume, hasLLM, isCompanyHidden).Render(r.Context(), w)
+	components.JobDetailPage(job, userJob, loggedIn, csrfToken, coachReady, isCompanyHidden).Render(r.Context(), w)
 }
 
 // parseSearchFilters extracts domain.SearchFilters from URL query params.

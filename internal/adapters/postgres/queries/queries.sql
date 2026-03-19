@@ -307,6 +307,12 @@ ON CONFLICT (user_id, company_id) DO UPDATE
 SELECT company_id FROM user_companies
 WHERE user_id = $1 AND hidden = TRUE;
 
+-- name: IsCompanyHidden :one
+SELECT EXISTS(
+    SELECT 1 FROM user_companies
+    WHERE user_id = $1 AND company_id = $2 AND hidden = TRUE
+) AS hidden;
+
 -- ============================================================
 -- Coach Cache
 -- ============================================================

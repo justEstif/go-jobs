@@ -393,6 +393,25 @@ func (q *Queries) GetUserJob(ctx context.Context, arg GetUserJobParams) (UserJob
 	return i, err
 }
 
+const isCompanyHidden = `-- name: IsCompanyHidden :one
+SELECT EXISTS(
+    SELECT 1 FROM user_companies
+    WHERE user_id = $1 AND company_id = $2 AND hidden = TRUE
+) AS hidden
+`
+
+type IsCompanyHiddenParams struct {
+	UserID    pgtype.UUID `json:"user_id"`
+	CompanyID pgtype.UUID `json:"company_id"`
+}
+
+func (q *Queries) IsCompanyHidden(ctx context.Context, arg IsCompanyHiddenParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isCompanyHidden, arg.UserID, arg.CompanyID)
+	var hidden bool
+	err := row.Scan(&hidden)
+	return hidden, err
+}
+
 const listActiveCompanies = `-- name: ListActiveCompanies :many
 SELECT id, name, careers_url, ats_type, scrape_type, board_token, active, created_at FROM companies
 WHERE active = TRUE

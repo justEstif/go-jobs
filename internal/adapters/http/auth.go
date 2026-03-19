@@ -9,7 +9,6 @@ import (
 	"github.com/justestif/go-jobs/components"
 	"github.com/justestif/go-jobs/internal/adapters/http/middleware"
 	"github.com/justestif/go-jobs/internal/core/ports"
-	"github.com/justestif/go-jobs/internal/core/services"
 )
 
 // AuthHandler handles registration, login, and logout for the web layer.
@@ -76,7 +75,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	token, err := h.auth.Login(r.Context(), email, password)
 	if err != nil {
 		msg := "Invalid email or password"
-		if !errors.Is(err, services.ErrInvalidCredentials) {
+		if !errors.Is(err, ports.ErrInvalidCredentials) {
 			msg = "An error occurred. Please try again."
 		}
 		csrfTokenErr := csrf.Token(r)

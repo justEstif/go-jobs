@@ -190,6 +190,14 @@ func (s *applicationService) ListPipeline(ctx context.Context, userID domain.Use
 	return result, nil
 }
 
+// ResetTracker deletes all pipeline state (user_jobs) for the user.
+func (s *applicationService) ResetTracker(ctx context.Context, userID domain.UserID) error {
+	if err := s.userJobs.DeleteAll(ctx, userID); err != nil {
+		return fmt.Errorf("reset tracker for user %s: %w", userID, err)
+	}
+	return nil
+}
+
 // rankOf returns the position of status in the ordered pipeline slice,
 // or -1 if not found.
 func rankOf(status domain.ApplicationStatus, order []domain.ApplicationStatus) int {

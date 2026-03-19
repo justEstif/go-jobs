@@ -82,6 +82,11 @@ func (a *ApplicationClient) ListByStatus(ctx context.Context, _ domain.UserID, s
 	return jobs, nil
 }
 
+// ResetTracker is not supported in remote CLI mode — use the web settings page.
+func (a *ApplicationClient) ResetTracker(_ context.Context, _ domain.UserID) error {
+	return fmt.Errorf("ResetTracker: not supported in remote mode — use the web settings page")
+}
+
 // pipelineGroup mirrors the JSON shape returned by GET /api/v1/pipeline.
 type pipelineGroup struct {
 	Status string       `json:"status"`

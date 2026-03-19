@@ -12,19 +12,23 @@ import (
 	"github.com/justestif/go-jobs/components"
 	"github.com/justestif/go-jobs/internal/adapters/http/middleware"
 	"github.com/justestif/go-jobs/internal/core/ports"
-	"github.com/justestif/go-jobs/internal/core/services"
 )
 
 // SettingsHandler renders the settings page and handles account management.
+//
+// auth handles password verification (ChangePassword, DeleteAccount).
+// application handles pipeline reset (ResetTracker).
+// companies handles company visibility preferences.
 type SettingsHandler struct {
-	companies ports.CompanyService
-	user      ports.UserService
-	sm        *middleware.SessionManager
+	auth        ports.AuthService
+	application ports.ApplicationService
+	companies   ports.CompanyService
+	sm          *middleware.SessionManager
 }
 
 // NewSettingsHandler constructs a SettingsHandler.
-func NewSettingsHandler(companies ports.CompanyService, user ports.UserService, sm *middleware.SessionManager) *SettingsHandler {
-	return &SettingsHandler{companies: companies, user: user, sm: sm}
+func NewSettingsHandler(auth ports.AuthService, application ports.ApplicationService, companies ports.CompanyService, sm *middleware.SessionManager) *SettingsHandler {
+	return &SettingsHandler{auth: auth, application: application, companies: companies, sm: sm}
 }
 
 // Show handles GET /settings. Renders the settings page with blocked companies.
@@ -73,8 +77,8 @@ func (h *SettingsHandler) ChangePassword(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := h.user.ChangePassword(r.Context(), userID, current, newPass); err != nil {
-		if errors.Is(err, services.ErrInvalidCredentials) {
+	if err := h.auth.ChangePassword(r.Context(), userID, current, newPass); err != nil {
+		if errors.Is(err, ports.ErrInvalidCredentials) {
 			http.Redirect(w, r, "/settings?error=Current+password+is+incorrect", http.StatusSeeOther)
 			return
 		}
@@ -93,7 +97,7 @@ func (h *SettingsHandler) ResetTracker(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.user.ResetTracker(r.Context(), userID); err != nil {
+	if err := h.application.ResetTracker(r.Context(), userID); err != nil {
 		log.Printf("reset tracker for user %s: %v", userID, err)
 		http.Error(w, "Failed to reset tracker", http.StatusInternalServerError)
 		return
@@ -115,8 +119,8 @@ func (h *SettingsHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) 
 	}
 
 	password := r.FormValue("password")
-	if err := h.user.DeleteAccount(r.Context(), userID, password); err != nil {
-		if errors.Is(err, services.ErrInvalidCredentials) {
+	if err := h.auth.DeleteAccount(r.Context(), userID, password); err != nil {
+		if errors.Is(err, ports.ErrInvalidCredentials) {
 			http.Redirect(w, r, "/settings?error=Incorrect+password", http.StatusSeeOther)
 			return
 		}

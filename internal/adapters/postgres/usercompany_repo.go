@@ -31,6 +31,19 @@ func (r *UserCompanyRepo) SetHidden(ctx context.Context, userID domain.UserID, c
 	return nil
 }
 
+// IsHidden returns true if the user has hidden the specified company.
+// Returns false if no row exists for the (user, company) pair.
+func (r *UserCompanyRepo) IsHidden(ctx context.Context, userID domain.UserID, companyID domain.CompanyID) (bool, error) {
+	hidden, err := r.q.IsCompanyHidden(ctx, queries.IsCompanyHiddenParams{
+		UserID:    uuidToPg(userID),
+		CompanyID: uuidToPg(companyID),
+	})
+	if err != nil {
+		return false, fmt.Errorf("check hidden for user %s company %s: %w", userID, companyID, err)
+	}
+	return hidden, nil
+}
+
 // ListHidden returns the IDs of companies hidden by the given user.
 func (r *UserCompanyRepo) ListHidden(ctx context.Context, userID domain.UserID) ([]domain.CompanyID, error) {
 	rows, err := r.q.ListHiddenCompanies(ctx, uuidToPg(userID))

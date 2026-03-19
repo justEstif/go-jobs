@@ -61,6 +61,16 @@ func (s *companyService) ListCompanies(ctx context.Context, userID domain.UserID
 	return visible, nil
 }
 
+// IsCompanyHidden returns true if the user has hidden the specified company.
+// Efficient single-row check — avoids fetching the entire hidden list.
+func (s *companyService) IsCompanyHidden(ctx context.Context, userID domain.UserID, companyID domain.CompanyID) (bool, error) {
+	hidden, err := s.userCompanies.IsHidden(ctx, userID, companyID)
+	if err != nil {
+		return false, fmt.Errorf("check hidden company %s for user %s: %w", companyID, userID, err)
+	}
+	return hidden, nil
+}
+
 // ListHiddenCompanies returns the full Company objects for companies the user
 // has hidden. Excludes companies with placeholder names (just the ATS provider
 // name, e.g. "greenhouse").

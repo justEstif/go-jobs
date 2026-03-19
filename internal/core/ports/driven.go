@@ -102,6 +102,9 @@ type ScrapeRunRepository interface {
 type UserCompanyRepository interface {
 	SetHidden(ctx context.Context, userID domain.UserID, companyID domain.CompanyID, hidden bool) error
 	ListHidden(ctx context.Context, userID domain.UserID) ([]domain.CompanyID, error)
+	// IsHidden returns true if the user has hidden the specified company.
+	// Returns false if no row exists for the (user, company) pair.
+	IsHidden(ctx context.Context, userID domain.UserID, companyID domain.CompanyID) (bool, error)
 }
 
 // JobScraper fetches raw job postings from a single ATS platform.

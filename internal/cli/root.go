@@ -38,7 +38,7 @@ func NewRootCmd(services Services) *cobra.Command {
 	// --base-url is a persistent flag so it appears in every sub-command's
 	// --help output. The actual value is consumed by the composition root
 	// before Execute() is called; cobra stores it here as documentation only.
-	root.PersistentFlags().String("base-url", "", "go-jobs server URL (overrides BASE_URL env; default: http://127.0.0.1:3000)")
+	root.PersistentFlags().String("base-url", "", `go-jobs server URL (overrides BASE_URL env; default: https://jobs.estifanos.cc; use "local" for direct DB access)`)
 
 	root.AddCommand(newScrapeCmd(services))
 	root.AddCommand(newEnrichCmd(services))

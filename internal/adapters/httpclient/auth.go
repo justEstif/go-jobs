@@ -82,6 +82,16 @@ func (a *AuthClient) DeleteToken(_ context.Context, _ string) error {
 	return nil
 }
 
+// ChangePassword is not supported in remote CLI mode — use the web settings page.
+func (a *AuthClient) ChangePassword(_ context.Context, _ domain.UserID, _, _ string) error {
+	return fmt.Errorf("ChangePassword: not supported in remote mode — use the web settings page")
+}
+
+// DeleteAccount is not supported in remote CLI mode — use the web settings page.
+func (a *AuthClient) DeleteAccount(_ context.Context, _ domain.UserID, _ string) error {
+	return fmt.Errorf("DeleteAccount: not supported in remote mode — use the web settings page")
+}
+
 // Me calls GET /api/v1/auth/me and returns the authenticated user.
 func (a *AuthClient) Me(ctx context.Context) (domain.User, error) {
 	var resp struct {

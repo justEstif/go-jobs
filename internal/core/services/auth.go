@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"fmt"
 
 	"golang.org/x/crypto/bcrypt"
@@ -12,10 +11,6 @@ import (
 	"github.com/justestif/go-jobs/internal/core/domain"
 	"github.com/justestif/go-jobs/internal/core/ports"
 )
-
-// ErrInvalidCredentials is returned by Login when the email/password pair does
-// not match a known user.
-var ErrInvalidCredentials = errors.New("invalid email or password")
 
 // authService implements ports.AuthService.
 type authService struct {
@@ -30,8 +25,7 @@ func NewAuthService(users ports.UserRepository, sessions ports.SessionRepository
 }
 
 // Register creates a new user account. The password is hashed with bcrypt
-// before storage. Returns ErrInvalidCredentials if email is already taken
-// (wrapped as a friendly message).
+// before storage. Returns an error if the email is already taken.
 func (s *authService) Register(ctx context.Context, email, password string) (domain.User, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -48,16 +42,16 @@ func (s *authService) Register(ctx context.Context, email, password string) (dom
 
 // Login verifies the email/password and, on success, generates and persists an
 // opaque random token that the caller can store (cookie or file). Returns
-// ErrInvalidCredentials for unknown email or wrong password.
+// ports.ErrInvalidCredentials for unknown email or wrong password.
 func (s *authService) Login(ctx context.Context, email, password string) (string, error) {
 	user, err := s.users.GetByEmail(ctx, email)
 	if err != nil {
 		// Avoid leaking whether the email exists.
-		return "", ErrInvalidCredentials
+		return "", ports.ErrInvalidCredentials
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return "", ErrInvalidCredentials
+		return "", ports.ErrInvalidCredentials
 	}
 
 	token, err := generateToken()
@@ -89,6 +83,48 @@ func (s *authService) Authenticate(ctx context.Context, token string) (domain.Us
 		return domain.User{}, fmt.Errorf("authenticate: %w", err)
 	}
 	return user, nil
+}
+
+// ChangePassword verifies the current password and sets a new one.
+// Returns ports.ErrInvalidCredentials if the current password is wrong.
+func (s *authService) ChangePassword(ctx context.Context, userID domain.UserID, currentPassword, newPassword string) error {
+	user, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("change password: get user: %w", err)
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(currentPassword)); err != nil {
+		return ports.ErrInvalidCredentials
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("change password: hash: %w", err)
+	}
+
+	if err := s.users.UpdatePassword(ctx, userID, string(hash)); err != nil {
+		return fmt.Errorf("change password: update: %w", err)
+	}
+	return nil
+}
+
+// DeleteAccount permanently removes the user and all associated data.
+// Requires the current password for confirmation.
+// Returns ports.ErrInvalidCredentials if the password is wrong.
+func (s *authService) DeleteAccount(ctx context.Context, userID domain.UserID, password string) error {
+	user, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("delete account: get user: %w", err)
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		return ports.ErrInvalidCredentials
+	}
+
+	if err := s.users.Delete(ctx, userID); err != nil {
+		return fmt.Errorf("delete account: %w", err)
+	}
+	return nil
 }
 
 // generateToken creates a 32-byte cryptographically random hex string.

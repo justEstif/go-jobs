@@ -18,8 +18,13 @@ import (
 	"github.com/justestif/go-jobs/internal/core/services"
 )
 
-// resolveBaseURL checks for --base-url flag or BASE_URL env var before cobra runs
-// Returns empty string for local mode, or the remote URL for remote mode
+// defaultBaseURL is the hosted server used when neither --base-url nor
+// BASE_URL is set. This lets `npm install -g @justestif/go-jobs && go-jobs search`
+// work out of the box without a local PostgreSQL database.
+const defaultBaseURL = "https://jobs.estifanos.cc"
+
+// resolveBaseURL checks for --base-url flag or BASE_URL env var before cobra runs.
+// Falls back to the hosted server so the CLI works without a local database.
 func resolveBaseURL() string {
 	args := os.Args
 	for i := 1; i < len(args); i++ {
@@ -30,43 +35,32 @@ func resolveBaseURL() string {
 			return args[i][12:]
 		}
 	}
-	return os.Getenv("BASE_URL")
-}
-
-// firstCommand returns the first non-flag argument, which determines if we're in remote CLI mode
-func firstCommand(args []string) string {
-	for _, arg := range args {
-		if arg != "" && !startsWithDash(arg) {
-			return arg
-		}
+	if env := os.Getenv("BASE_URL"); env != "" {
+		return env
 	}
-	return ""
-}
-
-func startsWithDash(s string) bool {
-	return len(s) > 0 && s[0] == '-'
+	return defaultBaseURL
 }
 
 func main() {
 	baseURL := resolveBaseURL()
 
-	// Check if this should be a remote CLI session
-	if baseURL != "" && firstCommand(os.Args) != "" {
-		runRemoteCLI(baseURL)
+	// Remote mode is the default. Local mode (direct DB access) is only used
+	// when the special sentinel value "local" is passed via --base-url or
+	// BASE_URL. This keeps the npm-installed CLI working without PostgreSQL.
+	if baseURL == "local" {
+		ctx := context.Background()
+		svc, err := setupLocalServices(ctx)
+		if err != nil {
+			log.Fatalf("Failed to setup services: %v", err)
+		}
+		rootCmd := cli.NewRootCmd(svc)
+		if err := rootCmd.Execute(); err != nil {
+			os.Exit(1)
+		}
 		return
 	}
 
-	// Local mode: wire up all services with DB access
-	ctx := context.Background()
-	services, err := setupLocalServices(ctx)
-	if err != nil {
-		log.Fatalf("Failed to setup services: %v", err)
-	}
-
-	rootCmd := cli.NewRootCmd(services)
-	if err := rootCmd.Execute(); err != nil {
-		os.Exit(1)
-	}
+	runRemoteCLI(baseURL)
 }
 
 // runRemoteCLI wires httpclient adapters targeting baseURL and executes the
@@ -153,7 +147,7 @@ func setupLocalServices(ctx context.Context) (cli.Services, error) {
 	searchService := services.NewJobSearchService(jobRepo)
 	applicationService := services.NewApplicationService(userJobRepo, jobRepo)
 	authService := services.NewAuthService(userRepo, userRepo)
-	userService := services.NewUserService(userRepo, userJobRepo, encryptFn)
+	userService := services.NewUserService(userRepo, encryptFn)
 	_ = services.NewCompanyService(companyRepo, userCompanyRepo) // not used in CLI
 	coachCacheRepo := postgres.NewCoachCacheRepo(postgres.DB)
 	coachService := services.NewJobCoachService(userRepo, jobRepo, companyRepo, coachCacheRepo, llm.NewClient, decryptFn)

@@ -230,10 +230,9 @@ templ JobCard(job domain.Job, loggedIn bool, csrfToken string) {
 }
 
 // JobDetailPage renders the full job detail view.
-// hasResume indicates the user has a resume configured for Job Coach.
-// hasLLM indicates the user has an LLM provider configured.
+// coachReady indicates the user has both resume and LLM provider configured (see domain.User.IsCoachReady).
 // isCompanyHidden indicates the user has hidden this company.
-templ JobDetailPage(job domain.Job, userJob *domain.UserJob, loggedIn bool, csrfToken string, hasResume bool, hasLLM bool, isCompanyHidden bool) {
+templ JobDetailPage(job domain.Job, userJob *domain.UserJob, loggedIn bool, csrfToken string, coachReady bool, isCompanyHidden bool) {
 	@Layout(job.Title, loggedIn, csrfToken) {
 		<div class="max-w-3xl">
 			<!-- Breadcrumb -->
@@ -289,7 +288,7 @@ templ JobDetailPage(job domain.Job, userJob *domain.UserJob, loggedIn bool, csrf
 				</div>
 			}
 			<!-- Job Coach -->
-			if loggedIn && hasResume && hasLLM {
+			if loggedIn && coachReady {
 				<div id="coach-panel" class="mb-6">
 					<div class="bg-base-100 border border-base-200 rounded-sm px-5 py-4">
 						<div class="flex items-center justify-between">
@@ -311,7 +310,7 @@ templ JobDetailPage(job domain.Job, userJob *domain.UserJob, loggedIn bool, csrf
 						<p class="text-xs text-base-content/40 mt-2">Compare your resume against this role — ATS gaps, fit analysis, and optimized resume.</p>
 					</div>
 				</div>
-			} else if loggedIn && (!hasResume || !hasLLM) {
+			} else if loggedIn && !coachReady {
 				<div class="mb-6">
 					<div class="bg-base-100 border border-base-200 rounded-sm px-5 py-4">
 						<div class="flex items-center justify-between">
@@ -319,13 +318,7 @@ templ JobDetailPage(job domain.Job, userJob *domain.UserJob, loggedIn bool, csrf
 							<a href="/coach" class="btn btn-sm btn-ghost text-xs">Set up</a>
 						</div>
 						<p class="text-xs text-base-content/40 mt-2">
-							if !hasResume && !hasLLM {
-								Add your resume and configure an LLM provider on the Coach page to analyze jobs.
-							} else if !hasResume {
-								Add your resume on the Coach page to analyze jobs.
-							} else {
-								Configure an LLM provider on the Coach page to analyze jobs.
-							}
+							Add your resume and configure an LLM provider on the Coach page to analyze jobs.
 						</p>
 					</div>
 				</div>

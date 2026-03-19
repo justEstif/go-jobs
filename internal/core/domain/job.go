@@ -197,6 +197,13 @@ type User struct {
 	CreatedAt     time.Time
 }
 
+// IsCoachReady returns true when the user has both a resume and an LLM provider
+// configured — the two prerequisites for Job Coach analysis and case study
+// generation. Encapsulates the readiness check so handlers don't replicate it.
+func (u User) IsCoachReady() bool {
+	return u.Resume != "" && u.LLMProvider != ""
+}
+
 // UserJob is a user's pipeline state for a specific job.
 type UserJob struct {
 	UserID    UserID
