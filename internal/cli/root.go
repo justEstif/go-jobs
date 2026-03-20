@@ -56,6 +56,7 @@ func NewRootCmd(services Services) *cobra.Command {
 	root.AddCommand(newResumeCmd(services))
 	root.AddCommand(newAnalyzeCmd(services))
 	root.AddCommand(newPromptCmd(services))
+	root.AddCommand(newSystemPromptCmd())
 
 	return root
 }

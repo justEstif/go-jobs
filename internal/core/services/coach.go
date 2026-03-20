@@ -85,7 +85,7 @@ func (s *coachService) AnalyzeJob(ctx context.Context, userID domain.UserID, job
 		return "", err
 	}
 
-	systemPrompt := buildAnalyzeSystemPrompt()
+	systemPrompt := AnalyzeSystemPrompt()
 	userPrompt := buildAnalyzeUserPrompt(user.Resume, job, company)
 
 	result, err := client.Complete(ctx, systemPrompt, userPrompt)
@@ -159,7 +159,7 @@ func (s *coachService) BuildAnalyzePrompt(ctx context.Context, userID domain.Use
 		return "", "", fmt.Errorf("coach: get company: %w", err)
 	}
 
-	return buildAnalyzeSystemPrompt(), buildAnalyzeUserPrompt(user.Resume, job, company), nil
+	return AnalyzeSystemPrompt(), buildAnalyzeUserPrompt(user.Resume, job, company), nil
 }
 
 // BuildCaseStudyPrompt returns the raw prompts for case study generation.
@@ -198,8 +198,8 @@ func (s *coachService) buildClient(user domain.User) (ports.LLMClient, error) {
 	return client, nil
 }
 
-// buildAnalyzeSystemPrompt returns the system prompt for job analysis.
-func buildAnalyzeSystemPrompt() string {
+// AnalyzeSystemPrompt returns the system prompt for job analysis.
+func AnalyzeSystemPrompt() string {
 	return `You are a senior career coach and ATS (Applicant Tracking System) optimization expert. You analyze job postings against a candidate's resume and provide actionable, specific feedback.
 
 Your analysis MUST follow this exact structure with these section headers:

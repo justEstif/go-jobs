@@ -46,9 +46,15 @@ go-jobs analyze <job-id>
 
 # Export the raw prompt to pipe to your own LLM
 go-jobs prompt <job-id> | llm "analyze my fit for this role"
+
+# Print just the system prompt (no job ID or login needed)
+go-jobs system-prompt
+go-jobs system-prompt | pbcopy
 ```
 
 `go-jobs prompt` outputs the full analysis prompt without calling any LLM — no API key needed, just a resume on file.
+
+`go-jobs system-prompt` prints only the system prompt — no job ID, no login, no DB required.
 
 ## Use with AI agents
 
@@ -86,6 +92,7 @@ go-jobs prompt <job-id> | llm "optimize my resume for this role"
 | `go-jobs resume clear` | Remove stored resume |
 | `go-jobs analyze <id>` | AI analysis of job vs resume |
 | `go-jobs prompt <id>` | Export raw LLM prompt |
+| `go-jobs system-prompt` | Print the Job Coach system prompt |
 | `go-jobs scrape` | Run the scrape pipeline |
 | `go-jobs enrich` | Run enrichment on untagged jobs |
 | `go-jobs serve` | Start the web server |

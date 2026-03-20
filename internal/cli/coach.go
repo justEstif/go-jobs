@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/justestif/go-jobs/internal/core/services"
 	"github.com/spf13/cobra"
 )
 
@@ -48,6 +49,19 @@ Results are cached per job — use --refresh to force a new analysis.`,
 	cmd.Flags().BoolVar(&refresh, "refresh", false, "Bypass cache and force a new analysis")
 
 	return cmd
+}
+
+func newSystemPromptCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "system-prompt",
+		Short: "Print the Job Coach system prompt",
+		Long:  `Print the raw system prompt used by Job Coach. No arguments, no DB, no LLM provider needed.`,
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Print(services.AnalyzeSystemPrompt())
+			return nil
+		},
+	}
 }
 
 func newPromptCmd(services Services) *cobra.Command {
