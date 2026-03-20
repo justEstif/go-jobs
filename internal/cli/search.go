@@ -125,7 +125,7 @@ Filter semantics:
 	cmd.Flags().IntVar(&offset, "offset", 0, "Result offset for pagination")
 	cmd.Flags().IntVar(&page, "page", 1, "1-based page number (used with --per-page)")
 	cmd.Flags().IntVar(&perPage, "per-page", 0, "Results per page (overrides --limit when set)")
-	cmd.Flags().StringVar(&postedWithin, "posted-within", "90d", "Recency filter: 24h, 7d, 14d, 90d, or all")
+	cmd.Flags().StringVar(&postedWithin, "posted-within", "90d", "Recency filter: 24h, 7d, 14d, 30d, 90d, or all")
 	cmd.Flags().StringVar(&format, "format", "json", "Output format: json (default) or table")
 
 	return cmd
@@ -139,12 +139,14 @@ func parsePostedWithinFlag(raw string) (int, error) {
 		return 7, nil
 	case "14d":
 		return 14, nil
+	case "30d":
+		return 30, nil
 	case "90d", "":
 		return 90, nil
 	case "all", "0":
 		return 0, nil
 	default:
-		return 0, fmt.Errorf("invalid --posted-within value %q (use 24h, 7d, 14d, 90d, all)", raw)
+		return 0, fmt.Errorf("invalid --posted-within value %q (use 24h, 7d, 14d, 30d, 90d, all)", raw)
 	}
 }
 

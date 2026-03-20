@@ -141,6 +141,8 @@ func apiPostedWithin(raw string) int {
 		return 7
 	case "14d":
 		return 14
+	case "30d":
+		return 30
 	case "all", "0":
 		return 0
 	default:
