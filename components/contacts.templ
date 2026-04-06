@@ -1,0 +1,68 @@
+package components
+
+import "fmt"
+
+// ContactsPage renders the LinkedIn contacts management page.
+templ ContactsPage(total int64, linked int64, companies int64, flash string, loggedIn bool, csrfToken string) {
+	@Layout("Network", loggedIn, csrfToken) {
+		<div class="max-w-2xl">
+			<h1 class="text-xl font-semibold mb-1">Your Network</h1>
+			<p class="text-sm text-base-content/50 mb-6">
+				Import your LinkedIn connections to see which of your contacts work at companies with open jobs.
+			</p>
+
+			if flash != "" {
+				<div class="mb-4 text-sm text-success">{ flash }</div>
+			}
+
+			<!-- Stats -->
+			if total > 0 {
+				<section class="bg-base-100 border border-base-200 rounded-sm px-5 py-4 mb-6">
+					<h2 class="text-sm font-medium uppercase tracking-wide text-base-content/50 mb-3">Stats</h2>
+					<div class="grid grid-cols-3 gap-4 text-center">
+						<div>
+							<div class="text-2xl font-semibold">{ fmt.Sprintf("%d", total) }</div>
+							<div class="text-xs text-base-content/50">Contacts</div>
+						</div>
+						<div>
+							<div class="text-2xl font-semibold">{ fmt.Sprintf("%d", linked) }</div>
+							<div class="text-xs text-base-content/50">Linked</div>
+						</div>
+						<div>
+							<div class="text-2xl font-semibold">{ fmt.Sprintf("%d", companies) }</div>
+							<div class="text-xs text-base-content/50">Companies</div>
+						</div>
+					</div>
+				</section>
+			}
+
+			<!-- Upload -->
+			<section class="bg-base-100 border border-base-200 rounded-sm px-5 py-4 mb-6">
+				<h2 class="text-sm font-medium uppercase tracking-wide text-base-content/50 mb-1">Import Connections</h2>
+				<p class="text-xs text-base-content/40 mb-3">
+					Upload your LinkedIn <code>Connections.csv</code> file.
+					<a href="https://www.linkedin.com/mypreferences/d/download-my-data" target="_blank" class="link link-primary">Request your data export here.</a>
+				</p>
+				<form method="POST" action="/contacts/import" enctype="multipart/form-data">
+					<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+					<div class="flex items-end gap-3">
+						<input type="file" name="file" accept=".csv" class="file-input file-input-bordered file-input-sm w-full max-w-xs" required/>
+						<button type="submit" class="btn btn-primary btn-sm">Import</button>
+					</div>
+				</form>
+			</section>
+
+			<!-- Delete -->
+			if total > 0 {
+				<section class="bg-base-100 border border-base-200 rounded-sm px-5 py-4">
+					<h2 class="text-sm font-medium uppercase tracking-wide text-error/70 mb-1">Danger Zone</h2>
+					<p class="text-xs text-base-content/40 mb-3">Delete all imported contacts. This cannot be undone.</p>
+					<form method="POST" action="/contacts/delete" onsubmit="return confirm('Delete all contacts?')">
+						<input type="hidden" name="gorilla.csrf.Token" value={ csrfToken }/>
+						<button type="submit" class="btn btn-error btn-sm btn-outline">Delete All Contacts</button>
+					</form>
+				</section>
+			}
+		</div>
+	}
+}

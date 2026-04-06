@@ -11,6 +11,39 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countContactsForUser = `-- name: CountContactsForUser :one
+SELECT count(*) AS count FROM contacts WHERE user_id = $1
+`
+
+func (q *Queries) CountContactsForUser(ctx context.Context, userID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countContactsForUser, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countDistinctCompaniesForUser = `-- name: CountDistinctCompaniesForUser :one
+SELECT count(DISTINCT company_id) AS count FROM contacts WHERE user_id = $1 AND company_id IS NOT NULL
+`
+
+func (q *Queries) CountDistinctCompaniesForUser(ctx context.Context, userID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countDistinctCompaniesForUser, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countLinkedContactsForUser = `-- name: CountLinkedContactsForUser :one
+SELECT count(*) AS count FROM contacts WHERE user_id = $1 AND company_id IS NOT NULL
+`
+
+func (q *Queries) CountLinkedContactsForUser(ctx context.Context, userID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countLinkedContactsForUser, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createScrapeRun = `-- name: CreateScrapeRun :exec
 
 INSERT INTO scrape_runs (id, started_at, status)
@@ -64,6 +97,15 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const deleteContactsForUser = `-- name: DeleteContactsForUser :exec
+DELETE FROM contacts WHERE user_id = $1
+`
+
+func (q *Queries) DeleteContactsForUser(ctx context.Context, userID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteContactsForUser, userID)
+	return err
+}
+
 const deleteSession = `-- name: DeleteSession :exec
 DELETE FROM sessions WHERE token = $1
 `
@@ -89,6 +131,45 @@ DELETE FROM user_jobs WHERE user_id = $1
 func (q *Queries) DeleteUserJobs(ctx context.Context, userID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteUserJobs, userID)
 	return err
+}
+
+const fuzzyMatchCompany = `-- name: FuzzyMatchCompany :one
+SELECT id, name, careers_url, ats_type, scrape_type, board_token, active, created_at, normalized_name, similarity(normalized_name, $1) AS score
+FROM companies
+WHERE normalized_name % $1
+ORDER BY similarity(normalized_name, $1) DESC
+LIMIT 1
+`
+
+type FuzzyMatchCompanyRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	Name           string             `json:"name"`
+	CareersUrl     string             `json:"careers_url"`
+	AtsType        string             `json:"ats_type"`
+	ScrapeType     string             `json:"scrape_type"`
+	BoardToken     string             `json:"board_token"`
+	Active         bool               `json:"active"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	NormalizedName string             `json:"normalized_name"`
+	Score          float32            `json:"score"`
+}
+
+func (q *Queries) FuzzyMatchCompany(ctx context.Context, similarity string) (FuzzyMatchCompanyRow, error) {
+	row := q.db.QueryRow(ctx, fuzzyMatchCompany, similarity)
+	var i FuzzyMatchCompanyRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CareersUrl,
+		&i.AtsType,
+		&i.ScrapeType,
+		&i.BoardToken,
+		&i.Active,
+		&i.CreatedAt,
+		&i.NormalizedName,
+		&i.Score,
+	)
+	return i, err
 }
 
 const getCoachCache = `-- name: GetCoachCache :one
@@ -122,7 +203,7 @@ func (q *Queries) GetCoachCache(ctx context.Context, arg GetCoachCacheParams) (C
 }
 
 const getCompanyByBoardToken = `-- name: GetCompanyByBoardToken :one
-SELECT id, name, careers_url, ats_type, scrape_type, board_token, active, created_at FROM companies
+SELECT id, name, careers_url, ats_type, scrape_type, board_token, active, created_at, normalized_name FROM companies
 WHERE ats_type = $1 AND board_token = $2
 LIMIT 1
 `
@@ -144,12 +225,13 @@ func (q *Queries) GetCompanyByBoardToken(ctx context.Context, arg GetCompanyByBo
 		&i.BoardToken,
 		&i.Active,
 		&i.CreatedAt,
+		&i.NormalizedName,
 	)
 	return i, err
 }
 
 const getCompanyByID = `-- name: GetCompanyByID :one
-SELECT id, name, careers_url, ats_type, scrape_type, board_token, active, created_at FROM companies
+SELECT id, name, careers_url, ats_type, scrape_type, board_token, active, created_at, normalized_name FROM companies
 WHERE id = $1
 LIMIT 1
 `
@@ -166,6 +248,34 @@ func (q *Queries) GetCompanyByID(ctx context.Context, id pgtype.UUID) (Company, 
 		&i.BoardToken,
 		&i.Active,
 		&i.CreatedAt,
+		&i.NormalizedName,
+	)
+	return i, err
+}
+
+const getCompanyByNormalizedName = `-- name: GetCompanyByNormalizedName :one
+
+SELECT id, name, careers_url, ats_type, scrape_type, board_token, active, created_at, normalized_name FROM companies
+WHERE normalized_name = $1
+LIMIT 1
+`
+
+// ============================================================
+// Company Matching (for contact import)
+// ============================================================
+func (q *Queries) GetCompanyByNormalizedName(ctx context.Context, normalizedName string) (Company, error) {
+	row := q.db.QueryRow(ctx, getCompanyByNormalizedName, normalizedName)
+	var i Company
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CareersUrl,
+		&i.AtsType,
+		&i.ScrapeType,
+		&i.BoardToken,
+		&i.Active,
+		&i.CreatedAt,
+		&i.NormalizedName,
 	)
 	return i, err
 }
@@ -412,8 +522,28 @@ func (q *Queries) IsCompanyHidden(ctx context.Context, arg IsCompanyHiddenParams
 	return hidden, err
 }
 
+const linkContactsToCompany = `-- name: LinkContactsToCompany :execrows
+UPDATE contacts
+SET company_id = $1
+WHERE normalized_company_name = $2
+  AND company_id IS NULL
+`
+
+type LinkContactsToCompanyParams struct {
+	CompanyID             pgtype.UUID `json:"company_id"`
+	NormalizedCompanyName string      `json:"normalized_company_name"`
+}
+
+func (q *Queries) LinkContactsToCompany(ctx context.Context, arg LinkContactsToCompanyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, linkContactsToCompany, arg.CompanyID, arg.NormalizedCompanyName)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const listActiveCompanies = `-- name: ListActiveCompanies :many
-SELECT id, name, careers_url, ats_type, scrape_type, board_token, active, created_at FROM companies
+SELECT id, name, careers_url, ats_type, scrape_type, board_token, active, created_at, normalized_name FROM companies
 WHERE active = TRUE
 ORDER BY name
 `
@@ -436,6 +566,7 @@ func (q *Queries) ListActiveCompanies(ctx context.Context) ([]Company, error) {
 			&i.BoardToken,
 			&i.Active,
 			&i.CreatedAt,
+			&i.NormalizedName,
 		); err != nil {
 			return nil, err
 		}
@@ -469,6 +600,96 @@ func (q *Queries) ListAllUserJobs(ctx context.Context, userID pgtype.UUID) ([]Us
 			&i.StatusAt,
 			&i.AppliedAt,
 			&i.Notes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listContactsByCompanyID = `-- name: ListContactsByCompanyID :many
+SELECT id, user_id, first_name, last_name, full_name, email, title, linkedin_url, connected_on, company_name, normalized_company_name, company_id, created_at FROM contacts
+WHERE user_id = $1 AND company_id = $2
+ORDER BY full_name
+`
+
+type ListContactsByCompanyIDParams struct {
+	UserID    pgtype.UUID `json:"user_id"`
+	CompanyID pgtype.UUID `json:"company_id"`
+}
+
+func (q *Queries) ListContactsByCompanyID(ctx context.Context, arg ListContactsByCompanyIDParams) ([]Contact, error) {
+	rows, err := q.db.Query(ctx, listContactsByCompanyID, arg.UserID, arg.CompanyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Contact{}
+	for rows.Next() {
+		var i Contact
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.FirstName,
+			&i.LastName,
+			&i.FullName,
+			&i.Email,
+			&i.Title,
+			&i.LinkedinUrl,
+			&i.ConnectedOn,
+			&i.CompanyName,
+			&i.NormalizedCompanyName,
+			&i.CompanyID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listContactsByCompanyIDs = `-- name: ListContactsByCompanyIDs :many
+SELECT id, user_id, first_name, last_name, full_name, email, title, linkedin_url, connected_on, company_name, normalized_company_name, company_id, created_at FROM contacts
+WHERE user_id = $1 AND company_id = ANY($2::uuid[])
+ORDER BY full_name
+`
+
+type ListContactsByCompanyIDsParams struct {
+	UserID  pgtype.UUID   `json:"user_id"`
+	Column2 []pgtype.UUID `json:"column_2"`
+}
+
+func (q *Queries) ListContactsByCompanyIDs(ctx context.Context, arg ListContactsByCompanyIDsParams) ([]Contact, error) {
+	rows, err := q.db.Query(ctx, listContactsByCompanyIDs, arg.UserID, arg.Column2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Contact{}
+	for rows.Next() {
+		var i Contact
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.FirstName,
+			&i.LastName,
+			&i.FullName,
+			&i.Email,
+			&i.Title,
+			&i.LinkedinUrl,
+			&i.ConnectedOn,
+			&i.CompanyName,
+			&i.NormalizedCompanyName,
+			&i.CompanyID,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -559,6 +780,33 @@ func (q *Queries) ListUnenrichedJobs(ctx context.Context, limit int32) ([]ListUn
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUnlinkedCompanyNames = `-- name: ListUnlinkedCompanyNames :many
+SELECT DISTINCT normalized_company_name
+FROM contacts
+WHERE user_id = $1 AND company_id IS NULL AND normalized_company_name <> ''
+ORDER BY normalized_company_name
+`
+
+func (q *Queries) ListUnlinkedCompanyNames(ctx context.Context, userID pgtype.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, listUnlinkedCompanyNames, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var normalized_company_name string
+		if err := rows.Scan(&normalized_company_name); err != nil {
+			return nil, err
+		}
+		items = append(items, normalized_company_name)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -958,23 +1206,25 @@ func (q *Queries) UpsertCoachCache(ctx context.Context, arg UpsertCoachCachePara
 
 const upsertCompany = `-- name: UpsertCompany :one
 
-INSERT INTO companies (name, careers_url, ats_type, scrape_type, board_token, active)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO companies (name, careers_url, ats_type, scrape_type, board_token, active, normalized_name)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (ats_type, board_token) DO UPDATE
-    SET name        = EXCLUDED.name,
-        careers_url = EXCLUDED.careers_url,
-        scrape_type = EXCLUDED.scrape_type,
-        active      = EXCLUDED.active
-RETURNING id, name, careers_url, ats_type, scrape_type, board_token, active, created_at
+    SET name            = EXCLUDED.name,
+        careers_url     = EXCLUDED.careers_url,
+        scrape_type     = EXCLUDED.scrape_type,
+        active          = EXCLUDED.active,
+        normalized_name = EXCLUDED.normalized_name
+RETURNING id, name, careers_url, ats_type, scrape_type, board_token, active, created_at, normalized_name
 `
 
 type UpsertCompanyParams struct {
-	Name       string `json:"name"`
-	CareersUrl string `json:"careers_url"`
-	AtsType    string `json:"ats_type"`
-	ScrapeType string `json:"scrape_type"`
-	BoardToken string `json:"board_token"`
-	Active     bool   `json:"active"`
+	Name           string `json:"name"`
+	CareersUrl     string `json:"careers_url"`
+	AtsType        string `json:"ats_type"`
+	ScrapeType     string `json:"scrape_type"`
+	BoardToken     string `json:"board_token"`
+	Active         bool   `json:"active"`
+	NormalizedName string `json:"normalized_name"`
 }
 
 // ============================================================
@@ -988,6 +1238,7 @@ func (q *Queries) UpsertCompany(ctx context.Context, arg UpsertCompanyParams) (C
 		arg.ScrapeType,
 		arg.BoardToken,
 		arg.Active,
+		arg.NormalizedName,
 	)
 	var i Company
 	err := row.Scan(
@@ -998,6 +1249,71 @@ func (q *Queries) UpsertCompany(ctx context.Context, arg UpsertCompanyParams) (C
 		&i.ScrapeType,
 		&i.BoardToken,
 		&i.Active,
+		&i.CreatedAt,
+		&i.NormalizedName,
+	)
+	return i, err
+}
+
+const upsertContact = `-- name: UpsertContact :one
+
+INSERT INTO contacts (user_id, first_name, last_name, email, title, linkedin_url, connected_on, company_name, normalized_company_name, company_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+ON CONFLICT (user_id, linkedin_url) WHERE linkedin_url <> '' DO UPDATE
+    SET first_name              = EXCLUDED.first_name,
+        last_name               = EXCLUDED.last_name,
+        email                   = EXCLUDED.email,
+        title                   = EXCLUDED.title,
+        connected_on            = EXCLUDED.connected_on,
+        company_name            = EXCLUDED.company_name,
+        normalized_company_name = EXCLUDED.normalized_company_name,
+        company_id              = EXCLUDED.company_id
+RETURNING id, user_id, first_name, last_name, full_name, email, title, linkedin_url, connected_on, company_name, normalized_company_name, company_id, created_at
+`
+
+type UpsertContactParams struct {
+	UserID                pgtype.UUID `json:"user_id"`
+	FirstName             string      `json:"first_name"`
+	LastName              string      `json:"last_name"`
+	Email                 string      `json:"email"`
+	Title                 string      `json:"title"`
+	LinkedinUrl           string      `json:"linkedin_url"`
+	ConnectedOn           pgtype.Date `json:"connected_on"`
+	CompanyName           string      `json:"company_name"`
+	NormalizedCompanyName string      `json:"normalized_company_name"`
+	CompanyID             pgtype.UUID `json:"company_id"`
+}
+
+// ============================================================
+// Contacts
+// ============================================================
+func (q *Queries) UpsertContact(ctx context.Context, arg UpsertContactParams) (Contact, error) {
+	row := q.db.QueryRow(ctx, upsertContact,
+		arg.UserID,
+		arg.FirstName,
+		arg.LastName,
+		arg.Email,
+		arg.Title,
+		arg.LinkedinUrl,
+		arg.ConnectedOn,
+		arg.CompanyName,
+		arg.NormalizedCompanyName,
+		arg.CompanyID,
+	)
+	var i Contact
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.FirstName,
+		&i.LastName,
+		&i.FullName,
+		&i.Email,
+		&i.Title,
+		&i.LinkedinUrl,
+		&i.ConnectedOn,
+		&i.CompanyName,
+		&i.NormalizedCompanyName,
+		&i.CompanyID,
 		&i.CreatedAt,
 	)
 	return i, err

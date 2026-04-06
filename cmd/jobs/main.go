@@ -111,6 +111,8 @@ func main() {
 	companyService := services.NewCompanyService(companyRepo, userCompanyRepo)
 	coachCacheRepo := postgres.NewCoachCacheRepo(postgres.DB)
 	coachService := services.NewJobCoachService(userRepo, jobRepo, companyRepo, coachCacheRepo, llm.NewClient, decryptFn)
+	contactRepo := postgres.NewContactRepo(postgres.DB)
+	contactService := services.NewContactService(contactRepo, contactRepo, companyRepo)
 	serve := func(ctx context.Context) error {
 		return runHTTPServer(
 			ctx,
@@ -121,6 +123,7 @@ func main() {
 			userService,
 			companyService,
 			coachService,
+			contactService,
 		)
 	}
 
@@ -141,6 +144,7 @@ func main() {
 		Auth:         authService,
 		User:         userService,
 		Coach:        coachService,
+		Contacts:     contactService,
 		Serve:        serve,
 		BackfillTags: backfillTags,
 	}
@@ -228,6 +232,7 @@ func runHTTPServer(
 	userService ports.UserService,
 	companyService ports.CompanyService,
 	coachService ports.JobCoachService,
+	contactService ports.ContactService,
 ) error {
 	sessionSecret := []byte(os.Getenv("SESSION_SECRET"))
 	if len(sessionSecret) == 0 {
@@ -263,6 +268,8 @@ func runHTTPServer(
 	settingsH := httphandlers.NewSettingsHandler(authService, applicationService, companyService, sm)
 	coachH := httphandlers.NewCoachHandler(coachService, userService)
 	apiH := api.New(authService, searchService, applicationService)
+	contactsH := httphandlers.NewContactsHandler(contactService)
+	contactsAPI := api.NewContactsAPI(contactService, searchService)
 
 	r.Group(func(r chi.Router) {
 		r.Use(csrfMw)
@@ -287,6 +294,9 @@ func runHTTPServer(
 		r.Post("/jobs/{id}/notes", trackerH.SetNotes)
 		r.Post("/jobs/{id}/analyze", coachH.Analyze)
 		r.Get("/pipeline", pipelineH.List)
+		r.Get("/contacts", contactsH.Show)
+		r.Post("/contacts/import", contactsH.Import)
+		r.Post("/contacts/delete", contactsH.Delete)
 		r.Post("/companies/{id}/hide", settingsH.HideCompany)
 		r.Post("/companies/{id}/show", settingsH.ShowCompany)
 		r.Get("/settings", settingsH.Show)
@@ -321,6 +331,10 @@ func runHTTPServer(
 			r.Post("/jobs/{id}/status", apiH.SetStatus)
 			r.Post("/jobs/{id}/notes", apiH.SetNotes)
 			r.Get("/pipeline", apiH.Pipeline)
+			r.Post("/contacts/import", contactsAPI.ImportCSV)
+			r.Get("/contacts/stats", contactsAPI.Stats)
+			r.Delete("/contacts", contactsAPI.DeleteAll)
+			r.Get("/jobs/{id}/referrals", contactsAPI.Referrals)
 		})
 	})
 

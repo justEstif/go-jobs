@@ -107,14 +107,15 @@ const (
 
 // Company is a company whose job board we scrape.
 type Company struct {
-	ID         CompanyID
-	Name       string
-	CareersURL string
-	ATSType    ATSType
-	ScrapeType ScrapeType
-	BoardToken string // platform-specific slug/token (board_token, company_slug, board_name)
-	Active     bool
-	CreatedAt  time.Time
+	ID             CompanyID
+	Name           string
+	NormalizedName string // lowercase, suffix-stripped; for fuzzy matching
+	CareersURL     string
+	ATSType        ATSType
+	ScrapeType     ScrapeType
+	BoardToken     string // platform-specific slug/token (board_token, company_slug, board_name)
+	Active         bool
+	CreatedAt      time.Time
 }
 
 // Job is a single job posting.

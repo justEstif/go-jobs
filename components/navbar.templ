@@ -28,6 +28,7 @@ templ Navbar(loggedIn bool, csrfToken string) {
 				if loggedIn {
 				<a href="/" class="btn btn-ghost btn-xs">Jobs</a>
 				<a href="/pipeline" class="btn btn-ghost btn-xs">Pipeline</a>
+				<a href="/contacts" class="btn btn-ghost btn-xs">Network</a>
 				<a href="/coach" class="btn btn-ghost btn-xs">Coach</a>
 				<a href="/settings" class="btn btn-ghost btn-xs">Settings</a>
 					<form method="post" action="/logout" class="inline">

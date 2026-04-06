@@ -20,13 +20,18 @@ func NewCompanyRepo(q *queries.Queries) *CompanyRepo {
 
 // Upsert inserts or updates a company by (ats_type, board_token).
 func (r *CompanyRepo) Upsert(ctx context.Context, company domain.Company) (domain.CompanyID, error) {
+	normalized := company.NormalizedName
+	if normalized == "" {
+		normalized = domain.NormalizeCompanyName(company.Name)
+	}
 	row, err := r.q.UpsertCompany(ctx, queries.UpsertCompanyParams{
-		Name:       company.Name,
-		CareersUrl: company.CareersURL,
-		AtsType:    string(company.ATSType),
-		ScrapeType: string(company.ScrapeType),
-		BoardToken: company.BoardToken,
-		Active:     company.Active,
+		Name:           company.Name,
+		CareersUrl:     company.CareersURL,
+		AtsType:        string(company.ATSType),
+		ScrapeType:     string(company.ScrapeType),
+		BoardToken:     company.BoardToken,
+		Active:         company.Active,
+		NormalizedName: normalized,
 	})
 	if err != nil {
 		return domain.CompanyID{}, fmt.Errorf("upsert company %q: %w", company.Name, err)

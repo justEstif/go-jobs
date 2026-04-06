@@ -18,14 +18,31 @@ type CoachCache struct {
 }
 
 type Company struct {
-	ID         pgtype.UUID        `json:"id"`
-	Name       string             `json:"name"`
-	CareersUrl string             `json:"careers_url"`
-	AtsType    string             `json:"ats_type"`
-	ScrapeType string             `json:"scrape_type"`
-	BoardToken string             `json:"board_token"`
-	Active     bool               `json:"active"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	ID             pgtype.UUID        `json:"id"`
+	Name           string             `json:"name"`
+	CareersUrl     string             `json:"careers_url"`
+	AtsType        string             `json:"ats_type"`
+	ScrapeType     string             `json:"scrape_type"`
+	BoardToken     string             `json:"board_token"`
+	Active         bool               `json:"active"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	NormalizedName string             `json:"normalized_name"`
+}
+
+type Contact struct {
+	ID                    pgtype.UUID        `json:"id"`
+	UserID                pgtype.UUID        `json:"user_id"`
+	FirstName             string             `json:"first_name"`
+	LastName              string             `json:"last_name"`
+	FullName              pgtype.Text        `json:"full_name"`
+	Email                 string             `json:"email"`
+	Title                 string             `json:"title"`
+	LinkedinUrl           string             `json:"linkedin_url"`
+	ConnectedOn           pgtype.Date        `json:"connected_on"`
+	CompanyName           string             `json:"company_name"`
+	NormalizedCompanyName string             `json:"normalized_company_name"`
+	CompanyID             pgtype.UUID        `json:"company_id"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
 }
 
 type HttpSession struct {

@@ -68,13 +68,14 @@ LIMIT 1;
 -- ============================================================
 
 -- name: UpsertCompany :one
-INSERT INTO companies (name, careers_url, ats_type, scrape_type, board_token, active)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO companies (name, careers_url, ats_type, scrape_type, board_token, active, normalized_name)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (ats_type, board_token) DO UPDATE
-    SET name        = EXCLUDED.name,
-        careers_url = EXCLUDED.careers_url,
-        scrape_type = EXCLUDED.scrape_type,
-        active      = EXCLUDED.active
+    SET name            = EXCLUDED.name,
+        careers_url     = EXCLUDED.careers_url,
+        scrape_type     = EXCLUDED.scrape_type,
+        active          = EXCLUDED.active,
+        normalized_name = EXCLUDED.normalized_name
 RETURNING *;
 
 -- name: ListActiveCompanies :many
@@ -329,3 +330,71 @@ ON CONFLICT (user_id, job_id, kind) DO UPDATE
     SET result     = EXCLUDED.result,
         model_used = EXCLUDED.model_used,
         created_at = NOW();
+
+-- ============================================================
+-- Company Matching (for contact import)
+-- ============================================================
+
+-- name: GetCompanyByNormalizedName :one
+SELECT * FROM companies
+WHERE normalized_name = $1
+LIMIT 1;
+
+-- name: FuzzyMatchCompany :one
+SELECT *, similarity(normalized_name, $1) AS score
+FROM companies
+WHERE normalized_name % $1
+ORDER BY similarity(normalized_name, $1) DESC
+LIMIT 1;
+
+-- ============================================================
+-- Contacts
+-- ============================================================
+
+-- name: UpsertContact :one
+INSERT INTO contacts (user_id, first_name, last_name, email, title, linkedin_url, connected_on, company_name, normalized_company_name, company_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+ON CONFLICT (user_id, linkedin_url) WHERE linkedin_url <> '' DO UPDATE
+    SET first_name              = EXCLUDED.first_name,
+        last_name               = EXCLUDED.last_name,
+        email                   = EXCLUDED.email,
+        title                   = EXCLUDED.title,
+        connected_on            = EXCLUDED.connected_on,
+        company_name            = EXCLUDED.company_name,
+        normalized_company_name = EXCLUDED.normalized_company_name,
+        company_id              = EXCLUDED.company_id
+RETURNING *;
+
+-- name: LinkContactsToCompany :execrows
+UPDATE contacts
+SET company_id = $1
+WHERE normalized_company_name = $2
+  AND company_id IS NULL;
+
+-- name: ListContactsByCompanyID :many
+SELECT * FROM contacts
+WHERE user_id = $1 AND company_id = $2
+ORDER BY full_name;
+
+-- name: ListContactsByCompanyIDs :many
+SELECT * FROM contacts
+WHERE user_id = $1 AND company_id = ANY($2::uuid[])
+ORDER BY full_name;
+
+-- name: DeleteContactsForUser :exec
+DELETE FROM contacts WHERE user_id = $1;
+
+-- name: CountContactsForUser :one
+SELECT count(*) AS count FROM contacts WHERE user_id = $1;
+
+-- name: CountLinkedContactsForUser :one
+SELECT count(*) AS count FROM contacts WHERE user_id = $1 AND company_id IS NOT NULL;
+
+-- name: CountDistinctCompaniesForUser :one
+SELECT count(DISTINCT company_id) AS count FROM contacts WHERE user_id = $1 AND company_id IS NOT NULL;
+
+-- name: ListUnlinkedCompanyNames :many
+SELECT DISTINCT normalized_company_name
+FROM contacts
+WHERE user_id = $1 AND company_id IS NULL AND normalized_company_name <> ''
+ORDER BY normalized_company_name;

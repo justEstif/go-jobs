@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"io"
 
 	"github.com/justestif/go-jobs/internal/core/domain"
 )
@@ -124,5 +125,20 @@ type JobCoachService interface {
 
 	// BuildCaseStudyPrompt returns the raw prompts for case study generation.
 	BuildCaseStudyPrompt(ctx context.Context, userID domain.UserID, projectDescription string) (systemPrompt, userPrompt string, err error)
+}
+
+// ContactService manages LinkedIn contact import and referral matching.
+type ContactService interface {
+	// ImportCSV parses a LinkedIn Connections.csv and imports contacts for the user.
+	// Companies are matched (exact → fuzzy → ATS probe) and linked automatically.
+	ImportCSV(ctx context.Context, userID domain.UserID, r io.Reader) (domain.ImportResult, error)
+	// ContactsAtCompany returns the user's contacts at a specific company.
+	ContactsAtCompany(ctx context.Context, userID domain.UserID, companyID domain.CompanyID) ([]domain.Contact, error)
+	// ContactsAtCompanies returns the user's contacts grouped by company ID.
+	ContactsAtCompanies(ctx context.Context, userID domain.UserID, companyIDs []domain.CompanyID) (map[domain.CompanyID][]domain.Contact, error)
+	// DeleteContacts removes all contacts for the user.
+	DeleteContacts(ctx context.Context, userID domain.UserID) error
+	// Stats returns contact and company counts for the user.
+	Stats(ctx context.Context, userID domain.UserID) (total int64, linked int64, companies int64, err error)
 }
 

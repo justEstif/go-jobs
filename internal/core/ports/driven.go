@@ -148,6 +148,25 @@ type LLMClient interface {
 	Complete(ctx context.Context, systemPrompt, userPrompt string) (string, error)
 }
 
+// ContactRepository persists and retrieves LinkedIn contacts.
+type ContactRepository interface {
+	Upsert(ctx context.Context, contact domain.Contact) (domain.ContactID, error)
+	LinkToCompany(ctx context.Context, normalizedCompanyName string, companyID domain.CompanyID) (int64, error)
+	ListByCompanyID(ctx context.Context, userID domain.UserID, companyID domain.CompanyID) ([]domain.Contact, error)
+	ListByCompanyIDs(ctx context.Context, userID domain.UserID, companyIDs []domain.CompanyID) ([]domain.Contact, error)
+	DeleteAllForUser(ctx context.Context, userID domain.UserID) error
+	CountForUser(ctx context.Context, userID domain.UserID) (int64, error)
+	CountLinkedForUser(ctx context.Context, userID domain.UserID) (int64, error)
+	CountDistinctCompaniesForUser(ctx context.Context, userID domain.UserID) (int64, error)
+	ListUnlinkedCompanyNames(ctx context.Context, userID domain.UserID) ([]string, error)
+}
+
+// CompanyMatcher finds companies by normalized name (exact or fuzzy).
+type CompanyMatcher interface {
+	GetByNormalizedName(ctx context.Context, normalizedName string) (domain.Company, error)
+	FuzzyMatch(ctx context.Context, normalizedName string) (domain.Company, float64, error)
+}
+
 // CompanySeeder discovers company slugs/tokens from external sources
 // (e.g. parsing the Simplify README files) and returns them as Company values
 // ready for upsert.

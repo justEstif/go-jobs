@@ -17,6 +17,7 @@ type Services struct {
 	Auth         ports.AuthService
 	User         ports.UserService
 	Coach        ports.JobCoachService
+	Contacts     ports.ContactService
 	Serve        func(ctx context.Context) error
 	BackfillTags func(ctx context.Context, limit int) (enriched, failed int, err error)
 }
@@ -57,6 +58,7 @@ func NewRootCmd(services Services) *cobra.Command {
 	root.AddCommand(newAnalyzeCmd(services))
 	root.AddCommand(newPromptCmd(services))
 	root.AddCommand(newSystemPromptCmd())
+	root.AddCommand(newImportCmd(services))
 
 	return root
 }

@@ -59,14 +59,15 @@ func timePtrToPg(t *time.Time) pgtype.Timestamptz {
 // domainCompanyFromDB maps a queries.Company to domain.Company.
 func domainCompanyFromDB(c queries.Company) domain.Company {
 	return domain.Company{
-		ID:         pgToUUID(c.ID),
-		Name:       c.Name,
-		CareersURL: c.CareersUrl,
-		ATSType:    domain.ATSType(c.AtsType),
-		ScrapeType: domain.ScrapeType(c.ScrapeType),
-		BoardToken: c.BoardToken,
-		Active:     c.Active,
-		CreatedAt:  pgToTime(c.CreatedAt),
+		ID:             pgToUUID(c.ID),
+		Name:           c.Name,
+		NormalizedName: c.NormalizedName,
+		CareersURL:     c.CareersUrl,
+		ATSType:        domain.ATSType(c.AtsType),
+		ScrapeType:     domain.ScrapeType(c.ScrapeType),
+		BoardToken:     c.BoardToken,
+		Active:         c.Active,
+		CreatedAt:      pgToTime(c.CreatedAt),
 	}
 }
 
