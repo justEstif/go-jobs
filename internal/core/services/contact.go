@@ -211,14 +211,30 @@ func (s *contactService) probeATS(ctx context.Context, slug string) (domain.ATST
 
 // parseLinkedInCSV reads a LinkedIn Connections.csv export.
 // Expected columns: First Name, Last Name, Email Address, Company, Position, Connected On.
+// LinkedIn prepends a notes preamble before the actual CSV header — we skip it.
 func parseLinkedInCSV(r io.Reader) ([]domain.Contact, error) {
 	reader := csv.NewReader(r)
 	reader.LazyQuotes = true
 	reader.TrimLeadingSpace = true
+	reader.FieldsPerRecord = -1 // allow variable field count (preamble lines)
 
-	header, err := reader.Read()
-	if err != nil {
-		return nil, fmt.Errorf("read header: %w", err)
+	// Skip preamble lines until we find the actual header row containing "First Name".
+	var header []string
+	for {
+		row, err := reader.Read()
+		if err != nil {
+			return nil, fmt.Errorf("read header: %w", err)
+		}
+		// Look for the real header row.
+		for _, col := range row {
+			if strings.EqualFold(strings.TrimSpace(col), "first name") {
+				header = row
+				break
+			}
+		}
+		if header != nil {
+			break
+		}
 	}
 
 	// Build column index map (case-insensitive, trimmed).
