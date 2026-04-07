@@ -75,9 +75,9 @@ func (s *contactService) ImportCSV(ctx context.Context, userID domain.UserID, r 
 		companyMap[contacts[i].NormalizedCompanyName] = struct{}{}
 	}
 
-	// Phase 1: Match companies (exact → fuzzy → ATS probe).
-	// Maps normalized name → company ID for linking.
+	// Phase 1: Match companies using DB lookups (fast).
 	nameToCompany := make(map[string]*domain.CompanyID)
+	var unmatchedNames []string
 
 	for normalized := range companyMap {
 		if normalized == "" {
@@ -102,37 +102,10 @@ func (s *contactService) ImportCSV(ctx context.Context, userID domain.UserID, r 
 			continue
 		}
 
-		// ATS probe.
-		slug := domain.Slugify(normalized)
-		if slug == "" {
-			result.CompaniesUnmatched++
-			continue
-		}
-
-		atsType, found := s.probeATS(ctx, slug)
-		if found {
-			newCompany := domain.Company{
-				Name:       normalized, // use normalized as name; will be overwritten if company exists
-				ATSType:    atsType,
-				ScrapeType: domain.ScrapeHTTP,
-				BoardToken: slug,
-				Active:     true,
-			}
-			companyID, err := s.companies.Upsert(ctx, newCompany)
-			if err != nil {
-				log.Printf("contact import: failed to register company %q: %v", normalized, err)
-				result.CompaniesUnmatched++
-				continue
-			}
-			nameToCompany[normalized] = &companyID
-			result.CompaniesRegistered++
-			continue
-		}
-
-		result.CompaniesUnmatched++
+		unmatchedNames = append(unmatchedNames, normalized)
 	}
 
-	// Phase 2: Upsert contacts with company IDs.
+	// Phase 2: Upsert contacts with company IDs from DB matches.
 	for i := range contacts {
 		if cID, ok := nameToCompany[contacts[i].NormalizedCompanyName]; ok {
 			contacts[i].CompanyID = cID
@@ -144,7 +117,53 @@ func (s *contactService) ImportCSV(ctx context.Context, userID domain.UserID, r 
 		result.ContactsImported++
 	}
 
+	result.CompaniesUnmatched = len(unmatchedNames)
+
+	// Phase 3: ATS probing for unmatched companies (slow — runs in background).
+	// Contacts are already saved; this phase discovers new companies and links them.
+	if len(unmatchedNames) > 0 {
+		go s.probeAndLinkCompanies(unmatchedNames)
+	}
+
 	return result, nil
+}
+
+// probeAndLinkCompanies runs ATS probes for unmatched company names and links
+// contacts to any newly discovered companies. Runs in a background goroutine.
+func (s *contactService) probeAndLinkCompanies(names []string) {
+	ctx := context.Background()
+	for _, normalized := range names {
+		slug := domain.Slugify(normalized)
+		if slug == "" {
+			continue
+		}
+
+		atsType, found := s.probeATS(ctx, slug)
+		if !found {
+			continue
+		}
+
+		newCompany := domain.Company{
+			Name:       normalized,
+			ATSType:    atsType,
+			ScrapeType: domain.ScrapeHTTP,
+			BoardToken: slug,
+			Active:     true,
+		}
+		companyID, err := s.companies.Upsert(ctx, newCompany)
+		if err != nil {
+			log.Printf("background ATS probe: failed to register company %q: %v", normalized, err)
+			continue
+		}
+
+		linked, err := s.contacts.LinkToCompany(ctx, normalized, companyID)
+		if err != nil {
+			log.Printf("background ATS probe: failed to link contacts for %q: %v", normalized, err)
+			continue
+		}
+		log.Printf("background ATS probe: registered %q (%s) and linked %d contacts", normalized, atsType, linked)
+	}
+	log.Printf("background ATS probe: finished processing %d companies", len(names))
 }
 
 func (s *contactService) ContactsAtCompany(ctx context.Context, userID domain.UserID, companyID domain.CompanyID) ([]domain.Contact, error) {
