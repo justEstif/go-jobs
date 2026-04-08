@@ -116,7 +116,7 @@ templ JobsListPage(jobs []domain.Job, filters domain.SearchFilters, networkOnly 
 							@JobCard(job, loggedIn, csrfToken)
 						}
 					</div>
-					@PaginationControls(filters, len(jobs))
+					@PaginationControls(filters, len(jobs), networkOnly)
 				}
 			</div>
 			<!-- Filter sidebar -->
@@ -171,15 +171,15 @@ templ FilterPanel(filters domain.SearchFilters, networkOnly bool, loggedIn bool)
 	</aside>
 }
 
-templ PaginationControls(filters domain.SearchFilters, resultCount int) {
+templ PaginationControls(filters domain.SearchFilters, resultCount int, networkOnly bool) {
 	<div class="mt-4 flex items-center justify-between text-sm">
 		<span class="text-base-content/50">Page { strconv.Itoa(currentPage(filters)) }</span>
 		<div class="flex gap-2">
 			if currentPage(filters) > 1 {
-				<a class="btn btn-xs btn-outline" href={ templ.SafeURL(pageHref(filters, currentPage(filters)-1)) } hx-disabled-elt="this">Previous</a>
+				<a class="btn btn-xs btn-outline" href={ templ.SafeURL(pageHref(filters, currentPage(filters)-1, networkOnly)) } hx-disabled-elt="this">Previous</a>
 			}
 			if resultCount == filters.Limit {
-				<a class="btn btn-xs btn-outline" href={ templ.SafeURL(pageHref(filters, currentPage(filters)+1)) } hx-disabled-elt="this">Next</a>
+				<a class="btn btn-xs btn-outline" href={ templ.SafeURL(pageHref(filters, currentPage(filters)+1, networkOnly)) } hx-disabled-elt="this">Next</a>
 			}
 		</div>
 	</div>
@@ -484,11 +484,14 @@ func currentPage(f domain.SearchFilters) int {
 	return page
 }
 
-func pageHref(f domain.SearchFilters, page int) string {
+func pageHref(f domain.SearchFilters, page int, networkOnly bool) string {
 	if page < 1 {
 		page = 1
 	}
 	v := url.Values{}
+	if networkOnly {
+		v.Set("network", "1")
+	}
 	if f.Query != "" {
 		v.Set("q", f.Query)
 	}
