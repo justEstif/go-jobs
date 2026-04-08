@@ -158,6 +158,7 @@ type ContactRepository interface {
 	CountForUser(ctx context.Context, userID domain.UserID) (int64, error)
 	CountLinkedForUser(ctx context.Context, userID domain.UserID) (int64, error)
 	CountDistinctCompaniesForUser(ctx context.Context, userID domain.UserID) (int64, error)
+	ListLinkedCompanyIDs(ctx context.Context, userID domain.UserID) ([]domain.CompanyID, error)
 	ListUnlinkedCompanyNames(ctx context.Context, userID domain.UserID) ([]string, error)
 }
 

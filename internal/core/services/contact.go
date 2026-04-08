@@ -187,6 +187,10 @@ func (s *contactService) ContactsAtCompanies(ctx context.Context, userID domain.
 	return grouped, nil
 }
 
+func (s *contactService) LinkedCompanyIDs(ctx context.Context, userID domain.UserID) ([]domain.CompanyID, error) {
+	return s.contacts.ListLinkedCompanyIDs(ctx, userID)
+}
+
 func (s *contactService) DeleteContacts(ctx context.Context, userID domain.UserID) error {
 	return s.contacts.DeleteAllForUser(ctx, userID)
 }

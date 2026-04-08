@@ -138,6 +138,8 @@ type ContactService interface {
 	ContactsAtCompanies(ctx context.Context, userID domain.UserID, companyIDs []domain.CompanyID) (map[domain.CompanyID][]domain.Contact, error)
 	// DeleteContacts removes all contacts for the user.
 	DeleteContacts(ctx context.Context, userID domain.UserID) error
+	// LinkedCompanyIDs returns the company IDs where the user has contacts.
+	LinkedCompanyIDs(ctx context.Context, userID domain.UserID) ([]domain.CompanyID, error)
 	// Stats returns contact and company counts for the user.
 	Stats(ctx context.Context, userID domain.UserID) (total int64, linked int64, companies int64, err error)
 }

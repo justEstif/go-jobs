@@ -15,7 +15,7 @@ import (
 
 // JobsListPage renders the main jobs browse page with search bar, filter panel,
 // and job card list.
-templ JobsListPage(jobs []domain.Job, filters domain.SearchFilters, loggedIn bool, csrfToken string) {
+templ JobsListPage(jobs []domain.Job, filters domain.SearchFilters, networkOnly bool, loggedIn bool, csrfToken string) {
 	@Layout("Jobs", loggedIn, csrfToken) {
 		<div
 			id="jobs-shell"
@@ -38,6 +38,9 @@ templ JobsListPage(jobs []domain.Job, filters domain.SearchFilters, loggedIn boo
 				</label>
 				<!-- Search bar -->
 				<form method="GET" action="/" class="mb-4 flex flex-wrap gap-2 items-center">
+					if networkOnly {
+						<input type="hidden" name="network" value="1"/>
+					}
 					for _, r := range roleTypeStrings(filters.RoleTypes) {
 						<input type="hidden" name="role" value={ r }/>
 					}
@@ -119,14 +122,14 @@ templ JobsListPage(jobs []domain.Job, filters domain.SearchFilters, loggedIn boo
 			<!-- Filter sidebar -->
 			<div class="drawer-side z-40">
 				<label for="filter-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
-				@FilterPanel(filters)
+				@FilterPanel(filters, networkOnly, loggedIn)
 			</div>
 		</div>
 	}
 }
 
 // FilterPanel renders the multi-select filter sidebar.
-templ FilterPanel(filters domain.SearchFilters) {
+templ FilterPanel(filters domain.SearchFilters, networkOnly bool, loggedIn bool) {
 	<aside class="w-52 min-h-full bg-base-200 p-4 pt-6">
 		<form method="GET" action="/" id="filter-form">
 			if filters.Query != "" {
@@ -135,6 +138,24 @@ templ FilterPanel(filters domain.SearchFilters) {
 			<input type="hidden" name="posted_within" value={ postedWithinParam(filters.PostedWithinDays) }/>
 			<input type="hidden" name="per_page" value={ strconv.Itoa(filters.Limit) }/>
 			<div class="space-y-5">
+				<!-- Network filter -->
+				if loggedIn {
+					<div>
+						<p class="text-xs font-medium uppercase tracking-wide text-base-content/50 mb-1.5">Network</p>
+						<label class="flex items-center gap-2 cursor-pointer">
+							<input
+								type="checkbox"
+								name="network"
+								value="1"
+								class="checkbox checkbox-xs checkbox-primary"
+								if networkOnly {
+									checked
+								}
+							/>
+							<span class="text-sm">My contacts only</span>
+						</label>
+					</div>
+				}
 				<!-- Role type -->
 				@filterSection("Role", "role", roleTypeOptions(), selectedStrings(roleTypeStrings(filters.RoleTypes)))
 				<!-- Seniority -->

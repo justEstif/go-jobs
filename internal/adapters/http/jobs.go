@@ -42,6 +42,7 @@ func (h *JobSearchHandler) List(w http.ResponseWriter, r *http.Request) {
 	filters := parseSearchFilters(r)
 
 	var userCtx *domain.UserSearchContext
+	var networkOnly bool
 	userID, loggedIn := middleware.UserIDFromContext(r.Context())
 	if loggedIn {
 		// Touch last visited asynchronously — best-effort, don't block the request.
@@ -59,6 +60,20 @@ func (h *JobSearchHandler) List(w http.ResponseWriter, r *http.Request) {
 			UserID:  userID,
 			OnlyNew: onlyNew,
 		}
+
+		// Network filter: show only jobs at companies where user has contacts.
+		if r.URL.Query().Get("network") == "1" {
+			networkOnly = true
+			companyIDs, err := h.contacts.LinkedCompanyIDs(r.Context(), userID)
+			if err != nil {
+				log.Printf("network filter: %v", err)
+			} else if len(companyIDs) > 0 {
+				filters.CompanyIDs = companyIDs
+			} else {
+				// User has no linked contacts — return empty results.
+				filters.CompanyIDs = []domain.CompanyID{{}}
+			}
+		}
 	}
 
 	jobs, err := h.search.Search(r.Context(), filters, userCtx)
@@ -69,7 +84,7 @@ func (h *JobSearchHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	csrfToken := csrf.Token(r)
-	components.JobsListPage(jobs, filters, loggedIn, csrfToken).Render(r.Context(), w)
+	components.JobsListPage(jobs, filters, networkOnly, loggedIn, csrfToken).Render(r.Context(), w)
 }
 
 // Detail handles GET /jobs/{id}. Renders the job detail page.

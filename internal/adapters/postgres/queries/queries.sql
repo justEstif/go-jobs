@@ -393,6 +393,11 @@ SELECT count(*) AS count FROM contacts WHERE user_id = $1 AND company_id IS NOT 
 -- name: CountDistinctCompaniesForUser :one
 SELECT count(DISTINCT company_id) AS count FROM contacts WHERE user_id = $1 AND company_id IS NOT NULL;
 
+-- name: ListLinkedCompanyIDsForUser :many
+SELECT DISTINCT company_id
+FROM contacts
+WHERE user_id = $1 AND company_id IS NOT NULL;
+
 -- name: ListUnlinkedCompanyNames :many
 SELECT DISTINCT normalized_company_name
 FROM contacts

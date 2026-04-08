@@ -726,6 +726,32 @@ func (q *Queries) ListHiddenCompanies(ctx context.Context, userID pgtype.UUID) (
 	return items, nil
 }
 
+const listLinkedCompanyIDsForUser = `-- name: ListLinkedCompanyIDsForUser :many
+SELECT DISTINCT company_id
+FROM contacts
+WHERE user_id = $1 AND company_id IS NOT NULL
+`
+
+func (q *Queries) ListLinkedCompanyIDsForUser(ctx context.Context, userID pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listLinkedCompanyIDsForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var company_id pgtype.UUID
+		if err := rows.Scan(&company_id); err != nil {
+			return nil, err
+		}
+		items = append(items, company_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUnenrichedJobs = `-- name: ListUnenrichedJobs :many
 SELECT j.id, j.company_id, j.external_id, j.title, j.url, j.location, j.description, j.raw_html, j.source, j.first_seen, j.last_seen, j.active, c.name AS company_name
 FROM jobs j

@@ -102,6 +102,18 @@ func (r *ContactRepo) CountDistinctCompaniesForUser(ctx context.Context, userID 
 	return r.q.CountDistinctCompaniesForUser(ctx, uuidToPg(userID))
 }
 
+func (r *ContactRepo) ListLinkedCompanyIDs(ctx context.Context, userID domain.UserID) ([]domain.CompanyID, error) {
+	pgIDs, err := r.q.ListLinkedCompanyIDsForUser(ctx, uuidToPg(userID))
+	if err != nil {
+		return nil, fmt.Errorf("list linked company IDs: %w", err)
+	}
+	ids := make([]domain.CompanyID, len(pgIDs))
+	for i, pgID := range pgIDs {
+		ids[i] = pgToUUID(pgID)
+	}
+	return ids, nil
+}
+
 func (r *ContactRepo) ListUnlinkedCompanyNames(ctx context.Context, userID domain.UserID) ([]string, error) {
 	return r.q.ListUnlinkedCompanyNames(ctx, uuidToPg(userID))
 }
