@@ -262,7 +262,7 @@ func runHTTPServer(
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
 	authH := httphandlers.NewAuthHandler(authService, sm)
-	jobsH := httphandlers.NewJobSearchHandler(searchService, applicationService, userService, companyService)
+	jobsH := httphandlers.NewJobSearchHandler(searchService, applicationService, userService, companyService, contactService)
 	trackerH := httphandlers.NewTrackerHandler(applicationService, searchService)
 	pipelineH := httphandlers.NewPipelineHandler(applicationService)
 	settingsH := httphandlers.NewSettingsHandler(authService, applicationService, companyService, sm)

@@ -232,7 +232,7 @@ templ JobCard(job domain.Job, loggedIn bool, csrfToken string) {
 // JobDetailPage renders the full job detail view.
 // coachReady indicates the user has both resume and LLM provider configured (see domain.User.IsCoachReady).
 // isCompanyHidden indicates the user has hidden this company.
-templ JobDetailPage(job domain.Job, userJob *domain.UserJob, loggedIn bool, csrfToken string, coachReady bool, isCompanyHidden bool) {
+templ JobDetailPage(job domain.Job, userJob *domain.UserJob, contacts []domain.Contact, loggedIn bool, csrfToken string, coachReady bool, isCompanyHidden bool) {
 	@Layout(job.Title, loggedIn, csrfToken) {
 		<div class="max-w-3xl">
 			<!-- Breadcrumb -->
@@ -281,6 +281,37 @@ templ JobDetailPage(job domain.Job, userJob *domain.UserJob, loggedIn bool, csrf
 			<div id="action-bar" class="mb-6">
 				@ActionBarPartial(job.ID, userJob, csrfToken)
 			</div>
+			<!-- Network -->
+			if len(contacts) > 0 {
+				<div class="mb-6">
+					<div class="bg-base-100 border border-base-200 rounded-sm px-5 py-4">
+						<h2 class="text-sm font-medium uppercase tracking-wide text-base-content/50 mb-3">Your Network</h2>
+						<p class="text-xs text-base-content/40 mb-3">
+							You have connections at { job.CompanyName } who may be able to refer you.
+						</p>
+						<div class="space-y-2">
+							for _, c := range contacts {
+								<div class="flex items-center justify-between text-sm">
+									<div>
+										<span class="font-medium text-base-content/80">{ c.FullName }</span>
+										if c.Title != "" {
+											<span class="text-base-content/50 ml-1">— { c.Title }</span>
+										}
+									</div>
+									<div class="flex gap-2">
+										if c.Email != "" {
+											<a href={ templ.SafeURL("mailto:" + c.Email) } class="link link-primary text-xs">Email</a>
+										}
+										if c.LinkedInURL != "" {
+											<a href={ templ.SafeURL(c.LinkedInURL) } target="_blank" rel="noopener noreferrer" class="link link-primary text-xs">LinkedIn</a>
+										}
+									</div>
+								</div>
+							}
+						</div>
+					</div>
+				</div>
+			}
 			<!-- Notes -->
 			if loggedIn {
 				<div id="notes-area" class="mb-6">

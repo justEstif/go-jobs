@@ -23,15 +23,17 @@ type JobSearchHandler struct {
 	application ports.ApplicationService
 	user        ports.UserService
 	companies   ports.CompanyService
+	contacts    ports.ContactService
 }
 
 // NewJobSearchHandler constructs a JobSearchHandler.
-func NewJobSearchHandler(search ports.JobSearchService, application ports.ApplicationService, user ports.UserService, companies ports.CompanyService) *JobSearchHandler {
+func NewJobSearchHandler(search ports.JobSearchService, application ports.ApplicationService, user ports.UserService, companies ports.CompanyService, contacts ports.ContactService) *JobSearchHandler {
 	return &JobSearchHandler{
 		search:      search,
 		application: application,
 		user:        user,
 		companies:   companies,
+		contacts:    contacts,
 	}
 }
 
@@ -87,6 +89,7 @@ func (h *JobSearchHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	var userJob *domain.UserJob
 	var coachReady, isCompanyHidden bool
+	var contacts []domain.Contact
 	userID, loggedIn := middleware.UserIDFromContext(r.Context())
 	if loggedIn {
 		uj, err := h.application.GetUserJob(r.Context(), userID, job.ID)
@@ -105,10 +108,15 @@ func (h *JobSearchHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			isCompanyHidden = hidden
 		}
+
+		// Fetch user's contacts at this company for referral display.
+		if c, err := h.contacts.ContactsAtCompany(r.Context(), userID, job.CompanyID); err == nil {
+			contacts = c
+		}
 	}
 
 	csrfToken := csrf.Token(r)
-	components.JobDetailPage(job, userJob, loggedIn, csrfToken, coachReady, isCompanyHidden).Render(r.Context(), w)
+	components.JobDetailPage(job, userJob, contacts, loggedIn, csrfToken, coachReady, isCompanyHidden).Render(r.Context(), w)
 }
 
 // parseSearchFilters extracts domain.SearchFilters from URL query params.
